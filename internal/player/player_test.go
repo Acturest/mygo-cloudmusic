@@ -203,6 +203,38 @@ func TestCache(t *testing.T) {
 	}
 }
 
+// A cache moved to another directory keeps the songs played there from
+// then on, and leaves those in the directory it left, which the listener
+// clears.
+func TestCacheSetDir(t *testing.T) {
+	root := t.TempDir()
+	old, dir := filepath.Join(root, "old"), filepath.Join(root, "new")
+	c := NewCache(old, 1<<30)
+	store := func(id int64, st *netease.Stream, n int) {
+		f := c.part(st)
+		f.Write(make([]byte, n))
+		f.Close()
+		c.keep(id, st, f.Name(), int64(n))
+	}
+	store(1, &netease.Stream{Level: "exhigh", Type: "mp3"}, 100)
+	c.SetDir(dir)
+	if got := c.Dir(); got != dir {
+		t.Fatalf("keeps songs in %s, want %s", got, dir)
+	}
+	if _, _, ok := c.lookup(1, "exhigh"); ok {
+		t.Error("found a song in the directory it left")
+	}
+	store(2, &netease.Stream{Level: "exhigh", Type: "mp3"}, 100)
+	if dl, _, ok := c.lookup(2, "exhigh"); !ok {
+		t.Error("did not keep a song in the directory chosen")
+	} else {
+		dl.Close()
+	}
+	if _, err := os.Stat(filepath.Join(old, "1-exhigh.mp3")); err != nil {
+		t.Errorf("dropped a song in the directory it left: %v", err)
+	}
+}
+
 // Leaving a radio keeps the song playing and those before it, drops those
 // it queued after, and asks it for no more.
 func TestEndRadio(t *testing.T) {

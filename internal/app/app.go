@@ -102,7 +102,7 @@ type app struct {
 	nowPlaying  bool
 	npOpen      bool      // Now Playing as it last showed: open or not
 	npChangedAt time.Time // when it last opened or closed
-	npPane      int       // paneLyrics, paneQueue, paneStage, paneComments, paneProgram or paneCaptions
+	npPane      int       // paneLyrics, paneQueue, paneStage, paneComments or paneProgram
 	npPaneTop   float32   // how far the cover beside the pane starts below its top
 	lyricScroll ui.ScrollState
 	lyricGlide  lyricGlide
@@ -133,14 +133,12 @@ type app struct {
 	npCoverState          coverState    // the cover of Now Playing, as it is tilted and flicked
 	wallState             wallState     // the wall of the queue's covers, as it is dragged
 	quiet                 quietState    // the quiet parts of the song playing, for its hot comments
-	captions              captionState  // the episode playing's captions, and the model that writes them
 	sig                   playerSig
 	quitting              bool
 
 	settings    settings
 	settingsWin *mygo.Window
 	cacheUsed   int64 // the bytes the song cache takes, -1 until measured
-	updates     bool  // the update plugin is used (useUpdater)
 
 	restored     bool   // playback picked up where it was left
 	savedSession string // the session as last kept
@@ -200,7 +198,6 @@ func Run() error {
 		cacheUsed:  -1,
 	}
 	moveOldData()
-	a.useUpdater()
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
@@ -211,10 +208,9 @@ func Run() error {
 		a.pl = player.New(a.post)
 		a.pl.Quality = func() string { return a.settings.Quality }
 		a.pl.Normalize = func() bool { return a.settings.Normalize }
-		a.pl.Cache = newSongCache(a.settings.CacheMB)
+		a.pl.Cache = newSongCache(a.songCacheDir(), a.settings.CacheMB)
 		a.pl.Changed = func() {
 			a.keepSession()
-			a.syncCaptions()
 		}
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
@@ -273,9 +269,6 @@ func Run() error {
 		a.settings.Volume = a.volume
 		a.settings.save()
 		a.saveSession()
-		if write := a.transcriptWrite(); write != nil {
-			write()
-		}
 	})
 	// Windows leaves an icon in the notification area after its app until
 	// the pointer passes over it.

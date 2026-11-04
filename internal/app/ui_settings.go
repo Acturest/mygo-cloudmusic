@@ -2,7 +2,6 @@ package app
 
 import (
 	"runtime"
-	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -154,10 +153,6 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		})
 
-		if a.captionsShown() {
-			group("播客", func() { a.captionSettings(row, c) })
-		}
-
 		group("缓存", func() {
 			row("歌曲缓存", "听过的歌曲保存在本机，再次播放无需等待，也不耗流量；"+a.cacheUsage(), func() {
 				labels := make([]string, len(cacheLimits))
@@ -178,6 +173,24 @@ func (a *app) settingsView(c *ui.Context) {
 					a.applyCacheLimit()
 				}
 			})
+			// The path is no sentence: on one line it ends in an ellipsis
+			// rather than wrapping under the buttons.
+			ui.Row(c).Padding(12, 16).Gap(16).AlignItems(ui.Center).MinHeight(48).Children(func() {
+				ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(3).Children(func() {
+					ui.Text(c, "缓存位置").FontSize(13.5).FontWeight(500)
+					ui.Text(c, a.cacheDirLabel()).FontSize(12).TextColor(p.muted).SingleLine()
+				})
+				if ui.Button(c.Key("cache-dir"), "更改…").Clicked() {
+					go a.chooseCacheDir(a.songCacheDir(), a.settingsWin)
+				}
+			})
+			if s.CacheDir != "" {
+				row("恢复默认位置", "缓存回到应用自己的目录，旧目录里的歌曲不会动", func() {
+					if ui.Button(c.Key("cache-dir-default"), "恢复默认").Clicked() {
+						a.setCacheDir("")
+					}
+				})
+			}
 			row("清除缓存", "删除保存在本机的全部歌曲", func() {
 				if ui.Button(c.Key("clear-cache"), "清除").Disabled(a.cacheUsed <= 0).Clicked() {
 					a.clearCache()
@@ -238,30 +251,5 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		})
 
-		if a.updates {
-			group("更新", func() {
-				desc := "每天检查一次是否有新版本"
-				if t := lastUpdateCheck(); !t.IsZero() {
-					desc += "；上次检查：" + commentTime(t, time.Now())
-				}
-				row("自动检查更新", desc, func() {
-					on := updateChecks()
-					if ui.Switch(c.Key("update-checks"), &on).Label("自动检查更新").Changed() {
-						setUpdateChecks(on)
-					}
-				})
-				row("自动下载并安装", "在后台下载新版本，下次打开时生效", func() {
-					on := updateDownloads()
-					if ui.Switch(c.Key("update-downloads"), &on).Label("自动下载并安装").Disabled(!updateChecks()).Changed() {
-						setUpdateDownloads(on)
-					}
-				})
-				row("当前版本 "+mygo.App.Version(), "", func() {
-					if ui.Button(c.Key("check-updates"), "检查更新").Clicked() {
-						checkForUpdates()
-					}
-				})
-			})
-		}
 	})
 }

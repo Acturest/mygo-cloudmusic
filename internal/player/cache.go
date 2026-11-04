@@ -18,7 +18,8 @@ import (
 // its stream was beside it in <id>-<level>.json. Once they take more than
 // the limit, those played longest ago go first.
 type Cache struct {
-	dir string
+	dir   string
+	dirMu sync.RWMutex // guards dir, which SetDir changes
 
 	mu    sync.Mutex
 	limit int64 // in bytes; 0 keeps nothing
@@ -27,6 +28,25 @@ type Cache struct {
 // NewCache returns a cache in dir of limit bytes.
 func NewCache(dir string, limit int64) *Cache {
 	return &Cache{dir: dir, limit: limit}
+}
+
+// SetDir keeps the songs played in dir from now on. The songs in the
+// directory it leaves stay there, for whoever chose it to delete.
+func (c *Cache) SetDir(dir string) {
+	c.dirMu.Lock()
+	c.dir = dir
+	c.dirMu.Unlock()
+	c.prune("")
+}
+
+// Dir returns where the songs are kept.
+func (c *Cache) Dir() string { return c.path() }
+
+// path is where the songs are kept now.
+func (c *Cache) path() string {
+	c.dirMu.RLock()
+	defer c.dirMu.RUnlock()
+	return c.dir
 }
 
 // SetLimit changes how much the cache may take, and drops what is over.
@@ -51,10 +71,11 @@ func (c *Cache) lookup(id int64, level string) (*download, *netease.Stream, bool
 	if c == nil {
 		return nil, nil, false
 	}
+	dir := c.path()
 	at := max(slices.Index(netease.Levels, level), 0)
 	for _, lv := range netease.Levels[at:] {
 		key := cacheKey(id, lv)
-		meta, err := os.ReadFile(filepath.Join(c.dir, key+".json"))
+		meta, err := os.ReadFile(filepath.Join(dir, key+".json"))
 		if err != nil {
 			continue
 		}
@@ -62,7 +83,7 @@ func (c *Cache) lookup(id int64, level string) (*download, *netease.Stream, bool
 		if json.Unmarshal(meta, &st) != nil || !keepable(lv, st.Type) {
 			continue
 		}
-		path := filepath.Join(c.dir, key+"."+st.Type)
+		path := filepath.Join(dir, key+"."+st.Type)
 		f, err := os.Open(path)
 		if err != nil {
 			continue
@@ -105,10 +126,11 @@ func (c *Cache) part(st *netease.Stream) *os.File {
 	if limit <= 0 || st.Size > limit/4 {
 		return nil
 	}
-	if os.MkdirAll(c.dir, 0o700) != nil {
+	dir := c.path()
+	if os.MkdirAll(dir, 0o700) != nil {
 		return nil
 	}
-	f, err := os.CreateTemp(c.dir, "*.part")
+	f, err := os.CreateTemp(dir, "*.part")
 	if err != nil {
 		return nil
 	}
@@ -125,6 +147,7 @@ func (c *Cache) keep(id int64, st *netease.Stream, part string, n int64) (string
 	if n > limit/4 {
 		return part, false
 	}
+	dir := c.path()
 	kept := *st
 	if kept.Type == "" {
 		kept.Type = "mp3"
@@ -135,11 +158,11 @@ func (c *Cache) keep(id int64, st *netease.Stream, part string, n int64) (string
 	}
 	key := cacheKey(id, kept.Level)
 	meta, _ := json.Marshal(kept)
-	path := filepath.Join(c.dir, key+"."+kept.Type)
+	path := filepath.Join(dir, key+"."+kept.Type)
 	if os.Rename(part, path) != nil {
 		return part, false
 	}
-	os.WriteFile(filepath.Join(c.dir, key+".json"), meta, 0o600)
+	os.WriteFile(filepath.Join(dir, key+".json"), meta, 0o600)
 	c.prune(path)
 	return path, true
 }
@@ -167,7 +190,8 @@ type cachedSong struct {
 }
 
 func (c *Cache) songs() []cachedSong {
-	entries, _ := os.ReadDir(c.dir)
+	dir := c.path()
+	entries, _ := os.ReadDir(dir)
 	var out []cachedSong
 	for _, e := range entries {
 		ext := filepath.Ext(e.Name())
@@ -178,7 +202,7 @@ func (c *Cache) songs() []cachedSong {
 		if err != nil {
 			continue
 		}
-		out = append(out, cachedSong{filepath.Join(c.dir, e.Name()), info.Size(), info.ModTime()})
+		out = append(out, cachedSong{filepath.Join(dir, e.Name()), info.Size(), info.ModTime()})
 	}
 	return out
 }
@@ -214,7 +238,7 @@ func (c *Cache) prune(keep string) {
 // dropParts removes the files of songs that never all came in, left by an
 // app that quit as they came: one coming in is written to every moment.
 func (c *Cache) dropParts() {
-	parts, _ := filepath.Glob(filepath.Join(c.dir, "*.part"))
+	parts, _ := filepath.Glob(filepath.Join(c.path(), "*.part"))
 	for _, path := range parts {
 		if info, err := os.Stat(path); err == nil && time.Since(info.ModTime()) > time.Hour {
 			os.Remove(path)
