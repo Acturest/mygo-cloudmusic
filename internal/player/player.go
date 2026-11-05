@@ -614,11 +614,14 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 			}
 		})
 	}()
+	// Asked here, on the main thread, where the settings are read and
+	// written: reading them from the goroutine below races with the
+	// settings window.
+	level := "exhigh"
+	if p.Quality != nil {
+		level = p.Quality()
+	}
 	go func() {
-		level := "exhigh"
-		if p.Quality != nil {
-			level = p.Quality()
-		}
 		info, s, err := p.open(t, level)
 		p.post(func() {
 			if gen != p.gen {

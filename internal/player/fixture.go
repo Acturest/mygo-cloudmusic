@@ -35,6 +35,9 @@ func (p *Player) Hold(pos time.Duration) {
 	p.playing = true
 }
 
+// Pause stops the player where it is, for the tests of views held still.
+func (p *Player) Pause() { p.playing = false }
+
 // Attach makes out the current track's audio, playing.
 func (p *Player) Attach(out *audio.Player) {
 	p.out = out

@@ -50,6 +50,7 @@ func (a *app) changed() {
 
 func (a *app) settingsView(c *ui.Context) {
 	t := *c.Theme()
+	t.Font = themeFont(a.settings.Font)
 	p := paletteFor(&t)
 	t.Accent, t.AccentText = p.accent, p.onAccent
 	c.SetTheme(&t)
@@ -209,6 +210,20 @@ func (a *app) settingsView(c *ui.Context) {
 				}
 				if segmented(c.Key("appearance"), &i, "跟随系统", "浅色", "深色") {
 					s.Appearance = modes[i]
+					a.changed()
+				}
+			})
+			row("字体", "歌词与界面的字体；内置的 獅尾四季春加糖 是一款衬线字体", func() {
+				labels := []string{"系统默认", "獅尾四季春加糖 SC"}
+				chosen := labels[0]
+				if s.Font == fontSweiSpring {
+					chosen = labels[1]
+				}
+				if ui.Select(c.Key("font"), &chosen, labels).Label("字体").Width(190).Changed() {
+					s.Font = ""
+					if chosen == labels[1] {
+						s.Font = fontSweiSpring
+					}
 					a.changed()
 				}
 			})

@@ -14,14 +14,17 @@ import (
 
 // The stage sets its lyrics in one of the styles of Folia's visualizers
 // (github.com/chthollyphile/folia-major), named as Folia names them: 流光,
-// its classic (ui_stage.go); 云阶, which stacks a line in staggered rows,
-// each springing in as it is sung; and 倾诉, which breaks a line into a
-// few large lines, one of them leaning, its characters swelling as they
-// are sung.
+// its classic (ui_stage.go); 心象, which scatters a line in fragments about
+// the middle; 云阶, which stacks a line in staggered rows, each springing in
+// as it is sung; 倾诉, which breaks a line into a few large lines, one of
+// them leaning, its characters swelling as they are sung; 回环, which wraps
+// a line around the front of a great ring (ui_stage_more.go).
 var stageStyles = []struct{ id, label string }{
 	{"", "流光"},
+	{"cadenza", "心象"},
 	{"partita", "云阶"},
 	{"tilt", "倾诉"},
+	{"claddagh", "回环"},
 }
 
 // stageStyleButton names the stage's style, and opens the menu of the

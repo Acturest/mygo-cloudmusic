@@ -20,7 +20,7 @@ import (
 type wordShape struct {
 	x, y, rotate, scale, drift float32
 	margin                     float32
-	last                       bool
+	last, pulse, ghost         bool
 }
 
 // lineRandom is a small random number generator seeded by a line and a word,
@@ -129,33 +129,41 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	box.Children(func() {
 		defer a.stageQuiet(c, dim, f, w)
 		quietUnder(ui.Box(c.Key("sung")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough(), dim).Children(func() {
-			// The line before goes as the new one comes.
-			if cur > 0 {
-				gone := float32((pos - lines[cur].At).Seconds()) / 0.4
-				if gone < 1 {
-					a.stageLine(c, &lines[cur-1], pos, f, w, h, 1-easeOutCubic(gone), accent)
-				}
-			}
+			longBreak := cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second
 			switch {
 			case cur < 0:
 				a.interlude(c, pos, 0, lines[0].At)
-			case cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second:
+			case longBreak:
 				// A long break before the next line.
 				a.interlude(c, pos, lines[cur].End, lines[cur+1].At)
+			case a.settings.StageStyle == "claddagh":
+				claddaghRing(c, lines, cur, pos, w, h, f, accent, pl.Playing())
+				a.stageFoot(c, lines, cur)
 			default:
+				// The line before goes as the new one comes.
+				if cur > 0 {
+					gone := float32((pos - lines[cur].At).Seconds()) / 0.4
+					if gone < 1 {
+						a.stageLine(c, &lines[cur-1], pos, f, w, h, 1-easeOutCubic(gone), accent)
+					}
+				}
 				a.stageLine(c, &lines[cur], pos, f, w, h, 1, accent)
+				a.stageFoot(c, lines, cur)
 			}
-
-			// The translation, and the line coming next, along the foot.
-			ui.Column(c).Absolute().Left(0).Right(0).Bottom(24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
-				if cur >= 0 && lines[cur].Translation != "" {
-					ui.Text(c.Key("translation"), lines[cur].Translation).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
-				}
-				if cur+1 < len(lines) {
-					ui.Text(c.Key("next"), lines[cur+1].Text).FontSize(14).TextColor(white.Alpha(0.32)).TextAlign(ui.Center).SingleLine()
-				}
-			})
 		})
+	})
+}
+
+// stageFoot shows the translation of the line being sung, and the one
+// coming next, along the foot.
+func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int) {
+	ui.Column(c).Absolute().Left(0).Right(0).Bottom(24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
+		if cur >= 0 && lines[cur].Translation != "" {
+			ui.Text(c.Key("translation"), lines[cur].Translation).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
+		}
+		if cur+1 < len(lines) {
+			ui.Text(c.Key("next"), lines[cur+1].Text).FontSize(14).TextColor(white.Alpha(0.32)).TextAlign(ui.Center).SingleLine()
+		}
 	})
 }
 
@@ -203,6 +211,9 @@ func (a *app) stageLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w, 
 	case "tilt":
 		tiltLine(c, l, pos, w, fade, accent, a.settings.StageSparks)
 		return
+	case "cadenza":
+		a.cadenzaLine(c, l, pos, f, w, h, fade, accent)
+		return
 	}
 	seed := float64(l.At / time.Millisecond)
 	shapes := stageShapes(c, l, f)
@@ -229,19 +240,27 @@ func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.D
 	after := float32((pos - end).Seconds())
 	singing := float32(max(0.08, (end - word.Start).Seconds()))
 
-	// Waiting: small, off to the side, turned and unseen.
+	// Waiting: small, off to the side, turned and unseen. 心象, which keeps
+	// its fragments about the stage, shows them faintly at their size
+	// instead, so that a line reads whole before it is sung.
 	x := s.x + float32(math.Sin(float64(s.y)))*100
 	y := s.y + float32(math.Cos(float64(s.x)))*50
 	scale, rotate, opacity, blur := float32(0.5), s.rotate+20, float32(0), float32(10)
 	color := white.Alpha(0.5)
+	if s.ghost {
+		x, y = s.x, s.y
+		scale, rotate, opacity, blur = s.scale*0.95, s.rotate, 0.34, 2
+		color = white.Alpha(0.55)
+	}
+	fromScale, fromRotate, fromBlur := scale, rotate, blur
 	glow := float32(0)
 	if since > 0 {
 		// Sung: springing to its place, larger, sharp, filling with light.
 		e := springStep(since)
 		x, y = lerp(x, s.x, e), lerp(y, s.y, e)
-		scale, rotate = lerp(0.5, s.scale*1.4, e), lerp(s.rotate+20, s.rotate, e)
+		scale, rotate = lerp(fromScale, s.scale*1.4, e), lerp(fromRotate, s.rotate, e)
 		opacity = clamp01(since / 0.1)
-		blur = 10 * (1 - clamp01(since/0.2))
+		blur = fromBlur * (1 - clamp01(since/0.2))
 		color = white.Alpha(lerp(0.5, 1, clamp01(since/singing)))
 		glow = clamp01(since / max(0.08, 0.3*singing))
 	}
@@ -253,6 +272,10 @@ func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.D
 		rotate = s.rotate + s.drift*clamp01(after/5)
 		color = white.Alpha(lerp(1, 0.5, easeOutCubic(after/0.8)))
 		glow = 1 - clamp01(after/0.9)
+	}
+	if s.pulse && since > 0 && after <= 0 {
+		// 心象 swells the word it is singing.
+		scale *= 1 + 0.05*float32(math.Sin(6*float64(since)))
 	}
 
 	box := ui.Box(c).MarginEnd(s.margin).Translate(x, y).Rotate(rotate).Scale(scale, scale).Opacity(opacity)

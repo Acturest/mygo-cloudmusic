@@ -28,6 +28,9 @@ type settings struct {
 	Quality string `json:"quality"`
 	// Appearance is light, dark, or system to follow the system.
 	Appearance string `json:"appearance"`
+	// Font is the family text is set in: empty for the system's, or
+	// fontSweiSpring for the app's own (fonts.go).
+	Font string `json:"font,omitempty"`
 	// Smoke makes the progress bars comets trailing smoke as music plays,
 	// for a few percent of a core: the listener turns it on.
 	Smoke bool `json:"smoke"`

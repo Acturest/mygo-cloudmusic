@@ -80,6 +80,15 @@ func TestNowPlayingFrameBudget(t *testing.T) {
 			t.Errorf("the stage between lines, in %s: %d frames a second", s.label, n)
 		}
 	}
+	// Paused just into a line, where 回环 is still turning, the stage asked
+	// for every frame after the pause.
+	a.pl.Pause()
+	for _, s := range stageStyles {
+		a.settings.StageStyle = s.id
+		if n := framesAt(a, tt, 20*time.Second+100*time.Millisecond); n > 3 {
+			t.Errorf("the stage paused at a line's start, in %s: %d frames a second", s.label, n)
+		}
+	}
 }
 
 // Another song's backdrop fades in over the last one's, which is then let
