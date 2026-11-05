@@ -48,7 +48,9 @@ func init() {
 					// NM_SMOKE=0 and NM_NOTCH=0 turn them off, to measure them.
 					a.settings.Smoke = os.Getenv("NM_SMOKE") != "0"
 					a.settings.Notch = os.Getenv("NM_NOTCH") != "0"
-					a.notch.setEnabled(a.settings.Notch)
+					if a.notch != nil { // macOS's: elsewhere the scene has none
+						a.notch.setEnabled(a.settings.Notch)
+					}
 				})
 				for range 40 {
 					var n int
