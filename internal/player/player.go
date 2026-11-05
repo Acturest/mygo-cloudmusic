@@ -13,6 +13,16 @@ import (
 	"netease-music-mygo/internal/netease"
 )
 
+var (
+	// openSong opens a song's audio, as a test replaces it.
+	openSong = func(p *Player, t netease.Track, level string) (*netease.Stream, stream, error) {
+		return p.open(t, level)
+	}
+	// retryPause is how long a song that failed to load waits before
+	// it is asked for again.
+	retryPause = 1500 * time.Millisecond
+)
+
 type RepeatMode int
 
 const (
@@ -569,6 +579,13 @@ func (p *Player) stop() {
 	p.fade.attach(nil, 1)
 }
 
+// skippable says whether a song that failed to open is one the queue
+// skips: only one that cannot be played at all, not one that failed to
+// load, like a download that timed out.
+func skippable(err error) bool {
+	return errors.Is(err, netease.ErrUnavailable)
+}
+
 // load plays the track at order[at], skipping those that cannot play.
 func (p *Player) load(at int) {
 	p.loadSkipping(at, 0, true, 0)
@@ -621,8 +638,16 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	if p.Quality != nil {
 		level = p.Quality()
 	}
+	p.loadStream(t, gen, at, skipped, level, false)
+}
+
+// loadStream opens the song's audio, and plays what it opens. The
+// network blinks: a first failure is asked again after retryPause, and
+// only a second one leaves the song failed, for the listener to play it
+// again.
+func (p *Player) loadStream(t netease.Track, gen, at, skipped int, level string, retry bool) {
 	go func() {
-		info, s, err := p.open(t, level)
+		info, s, err := openSong(p, t, level)
 		p.post(func() {
 			if gen != p.gen {
 				if s != nil {
@@ -633,11 +658,30 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 			p.loading = false
 			if err != nil {
 				p.err = err.Error()
-				switch {
-				case err != netease.ErrUnavailable:
-				case t.ProgramID != 0:
+				if !skippable(err) {
+					// A song that failed to load, a download that timed
+					// out say, stays: skipping it would play another song
+					// than the one that was picked.
+					if !retry {
+						p.err = err.Error() + "，正在重试…"
+						p.loading = true
+						p.sync()
+						time.AfterFunc(retryPause, func() {
+							p.post(func() {
+								if gen == p.gen {
+									p.loadStream(t, gen, at, skipped, level, true)
+								}
+							})
+						})
+						return
+					}
+					p.playing = false
+					p.sync()
+					return
+				}
+				if t.ProgramID != 0 {
 					p.err = "这期节目需要购买才能收听"
-				default:
+				} else {
 					p.err = "这首歌需要 VIP 才能播放"
 				}
 				// Skip what cannot play, unless nothing in the queue can.
@@ -653,6 +697,7 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 				}
 				return
 			}
+			p.err = ""
 			p.stream, p.info = s, info
 			p.gain = normGain(info)
 			p.out = audio.NewPlayer(s)

@@ -429,6 +429,10 @@ func SongURL(id int64, level string) (*Stream, error) {
 	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
 		return nil, err
 	}
+	if res.Code != 200 {
+		// Not the same as a song that won't stream: asked again, it may.
+		return nil, fmt.Errorf("netease: song url: code %d", res.Code)
+	}
 	if len(res.Data) == 0 || res.Data[0].URL == "" {
 		return nil, ErrUnavailable
 	}
@@ -440,7 +444,9 @@ func SongURL(id int64, level string) (*Stream, error) {
 	s := d.Stream
 	s.Type = strings.ToLower(s.Type)
 	if s.Type != "" && s.Type != "mp3" && s.Type != "flac" {
-		return nil, fmt.Errorf("unsupported format %s", s.Type)
+		// A format the player cannot open is a song it cannot play, as one
+		// NetEase will not stream: the queue skips it, rather than stopping.
+		return nil, fmt.Errorf("%w: %s", ErrUnavailable, s.Type)
 	}
 	if d.Peak != nil {
 		s.Peak = *d.Peak

@@ -1,9 +1,12 @@
 package player
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +20,26 @@ func TestPlayEmptyQueue(t *testing.T) {
 	p.PlayQueue(nil, 0) // an empty playlist's play button
 	if p.Current() != nil {
 		t.Error("playing from an empty queue")
+	}
+}
+
+// Only a song that cannot be played at all is skipped: one that merely
+// failed to load stays, so the queue does not play another song than the
+// one that was picked.
+func TestSkippable(t *testing.T) {
+	timeout := errors.New("read tcp 10.0.0.2: i/o timeout")
+	for _, c := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"unavailable", netease.ErrUnavailable, true},
+		{"wrapped", fmt.Errorf("song url: %w", netease.ErrUnavailable), true},
+		{"timeout", timeout, false},
+	} {
+		if got := skippable(c.err); got != c.want {
+			t.Errorf("%s: skippable(%v) = %v, want %v", c.name, c.err, got, c.want)
+		}
 	}
 }
 
@@ -253,5 +276,46 @@ func TestEndRadio(t *testing.T) {
 	p.refill()
 	if asked != 0 {
 		t.Error("asked the radio after leaving it")
+	}
+}
+
+// quietStream is a song of silence, for a test that makes up what a
+// load opens.
+type quietStream struct{ silence }
+
+func (quietStream) Close() error                   { return nil }
+func (quietStream) source() (*download, *spectrum) { return nil, nil }
+
+// A song that failed to load is asked for once more, so a blink of the
+// network does not leave it failed until the listener plays it again.
+func TestFailedLoadRetriesOnce(t *testing.T) {
+	ch, p := posted()
+	open, pause := openSong, retryPause
+	defer func() { openSong, retryPause = open, pause }()
+	retryPause = time.Millisecond
+	var calls atomic.Int32
+	openSong = func(*Player, netease.Track, string) (*netease.Stream, stream, error) {
+		if calls.Add(1) == 1 {
+			return nil, nil, errors.New("read tcp 10.0.0.2: i/o timeout")
+		}
+		return &netease.Stream{Level: "exhigh"}, quietStream{}, nil
+	}
+	p.load(0)
+	deadline := time.Now().Add(5 * time.Second)
+	for int(calls.Load()) < 2 || p.loading {
+		if time.Now().After(deadline) {
+			t.Fatalf("opened the song %d times, still loading %v", calls.Load(), p.loading)
+		}
+		select {
+		case fn := <-ch:
+			fn()
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	if p.err != "" {
+		t.Errorf("left the song failed: %q", p.err)
+	}
+	if p.stream == nil {
+		t.Error("does not play what the retry opened")
 	}
 }
