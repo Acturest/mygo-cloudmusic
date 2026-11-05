@@ -49,6 +49,20 @@ func TestStageSparksMenu(t *testing.T) {
 	}
 }
 
+// Opening the stage before the first line is sung shows the interlude: the
+// line before the first is none, and asking for how long the break after it
+// is used to look past the start of the lyrics.
+func TestStageBeforeFirstLine(t *testing.T) {
+	a, tt, _ := playingApp()
+	a.pl.SetLyrics([]lyrics.Line{{
+		At: 5 * time.Second, End: 8 * time.Second, Text: "一",
+		Words: []lyrics.Word{{Text: "一", Start: 5 * time.Second, End: 8 * time.Second}},
+	}})
+	a.pl.Hold(0)
+	a.nowPlaying, a.npPane = true, paneStage
+	tt.Frame() // used to panic on the line before the first
+}
+
 func words(texts ...string) []lyrics.Word {
 	out := make([]lyrics.Word, len(texts))
 	for i, s := range texts {

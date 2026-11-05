@@ -129,7 +129,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	box.Children(func() {
 		defer a.stageQuiet(c, dim, f, w)
 		quietUnder(ui.Box(c.Key("sung")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough(), dim).Children(func() {
-			longBreak := cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second
+			longBreak := cur >= 0 && cur+1 < len(lines) && pos > lines[cur].End+time.Second && lines[cur+1].At-lines[cur].End > 4*time.Second
 			switch {
 			case cur < 0:
 				a.interlude(c, pos, 0, lines[0].At)
