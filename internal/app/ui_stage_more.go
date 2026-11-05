@@ -57,7 +57,7 @@ func (a *app) cadenzaLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w
 		Wrap().Justify(ui.Center).AlignContent(ui.Center).AlignItems(ui.Center).
 		Opacity(fade).PassThrough().Children(func() {
 		for i, word := range l.Words {
-			a.stageWord(c.Key(i), word, shapes[i], pos, f, accent)
+			a.stageWord(c.Key(i), word, shapes[i], pos, l.At, f, accent)
 		}
 	})
 }

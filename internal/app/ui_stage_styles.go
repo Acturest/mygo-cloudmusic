@@ -265,7 +265,7 @@ func (a *app) partitaLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, h
 				}).
 				Children(func() {
 					for i, w := range words {
-						a.stageWord(c.Key(i), w, shapes[i], pos, f, accent)
+						a.stageWord(c.Key(i), w, shapes[i], pos, l.At, f, accent)
 					}
 				})
 		}
