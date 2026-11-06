@@ -29,7 +29,6 @@ import (
 const (
 	eapiDomain = "https://interfacepc.music.163.com"
 	eapiKey    = "e82ckenh8dichen8"
-	eapiUA     = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)"
 )
 
 // The desktop client this app speaks as.
@@ -39,6 +38,13 @@ var eapiClient = map[string]string{
 	"osver":   "Microsoft-Windows-10-Professional-build-19045-64bit",
 	"channel": "netease",
 }
+
+// eapiUA is the user agent of the same desktop client. NetEase risk control
+// refuses requests that do not look like the client their headers claim to
+// be: one that said iPhone here but Windows in the headers was answered with
+// -460 "检测到您的网络环境存在风险", about half the time, and never when
+// both said Windows.
+var eapiUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36 NeteaseMusicDesktop/" + eapiClient["appver"]
 
 var (
 	deviceOnce sync.Once
