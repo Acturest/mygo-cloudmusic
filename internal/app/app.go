@@ -42,9 +42,14 @@ type app struct {
 	win   *mygo.Window
 	notch *notch
 	tray  *mygo.Tray // the icon in the menu bar or notification area, while it shows
-	art   *artCache
-	pl    *player.Player
-	pal   palette
+	// lite is light mode: the window away, only the icon showing.
+	lite bool
+	// liteRepeat is the repeat mode light mode found, to go back to when
+	// the window comes back.
+	liteRepeat player.RepeatMode
+	art        *artCache
+	pl         *player.Player
+	pal        palette
 
 	route   route
 	history []route
@@ -269,6 +274,11 @@ func Run() error {
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 		a.quitting = true
+		// Light mode's list repeat is not the listener's own: theirs is
+		// what the next launch plays with.
+		if a.lite {
+			a.pl.SetRepeat(a.liteRepeat)
+		}
 		a.settings.Volume = a.volume
 		a.settings.save()
 		a.saveSession()
@@ -281,6 +291,6 @@ func Run() error {
 		}
 	})
 	mygo.App.OnWindowAllClosed(func() {})
-	mygo.App.OnActivate(func(bool) { a.showMain() })
+	mygo.App.OnActivate(func(bool) { a.showWindow() })
 	return mygo.App.Run()
 }

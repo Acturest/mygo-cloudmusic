@@ -88,11 +88,19 @@ func (a *app) applyTray() {
 			return
 		}
 		// Windows' left click, where the right one opens the menu.
-		t.OnClick(a.showMain)
+		t.OnClick(a.showWindow)
 		a.tray = t
 	case !show && a.tray != nil:
 		a.tray.Destroy()
 		a.tray = nil
+	}
+}
+
+// refreshTrayMenu gives the icon its menu again, as light mode changed
+// what it offers.
+func (a *app) refreshTrayMenu() {
+	if a.tray != nil {
+		a.tray.SetMenu(a.trayMenu())
 	}
 }
 
@@ -114,14 +122,18 @@ func (a *app) trayMenu() *mygo.Menu {
 	}
 	name := mygo.App.Name()
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "打开" + name, Click: run(a.showMain)},
+		{Label: "打开" + name, Click: run(a.showWindow)},
+		{Label: a.liteLabel(), Click: run(func() { a.setLite(!a.lite) })},
 		mygo.Separator(),
 		{Label: "播放/暂停", Click: run(func() { a.pl.TogglePlay() })},
 		{Label: "下一首", Click: run(func() { a.pl.Next() })},
 		{Label: "上一首", Click: run(func() { a.pl.Prev() })},
 		{Label: "喜欢/取消喜欢", Click: run(a.likeCurrent)},
 		mygo.Separator(),
-		{Label: "设置…", Click: run(front(a.openSettings))},
+		{Label: "设置…", Click: run(front(func() {
+			a.showWindow()
+			a.openSettings()
+		}))},
 		mygo.Separator(),
 		{Label: "退出" + name, Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})

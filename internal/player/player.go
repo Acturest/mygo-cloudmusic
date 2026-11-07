@@ -324,6 +324,9 @@ func (p *Player) ToggleShuffle() {
 
 func (p *Player) CycleRepeat() { p.repeat = (p.repeat + 1) % 3 }
 
+// SetRepeat sets the repeat mode.
+func (p *Player) SetRepeat(m RepeatMode) { p.repeat = m }
+
 // Current returns the track playing or loading, or nil.
 func (p *Player) Current() *netease.Track { return p.track }
 
