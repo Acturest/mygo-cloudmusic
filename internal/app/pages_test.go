@@ -6,6 +6,36 @@ import (
 	"netease-music-mygo/internal/netease"
 )
 
+// The charts page keeps NetEase's four leading charts and the ones the app
+// lists, in the order it lists them, whatever else NetEase sends.
+func TestChartsToShow(t *testing.T) {
+	var all []netease.Playlist
+	for i := int64(0); i < 8; i++ {
+		all = append(all, netease.Playlist{ID: i})
+	}
+	for _, id := range shownCharts {
+		all = append(all, netease.Playlist{ID: id})
+	}
+	got := chartsToShow(all)
+	if len(got) != 4+len(shownCharts) {
+		t.Fatalf("%d charts kept, want %d", len(got), 4+len(shownCharts))
+	}
+	for i := int64(0); i < 4; i++ {
+		if got[i].ID != i {
+			t.Errorf("chart %d is %d, want the leading ones first", i, got[i].ID)
+		}
+	}
+	for i, id := range shownCharts {
+		if got[4+i].ID != id {
+			t.Errorf("chart %d is %d, want %d", 4+i, got[4+i].ID, id)
+		}
+	}
+	// A chart NetEase stops sending is left out, not a hole.
+	if short := chartsToShow(all[:4]); len(short) != 4 {
+		t.Errorf("%d charts kept from four, want 4", len(short))
+	}
+}
+
 // The app keeps what the pages just left behind loaded, not every page a
 // session went through: a long session would hold every playlist's songs.
 func TestPagesKept(t *testing.T) {

@@ -25,6 +25,13 @@ var (
 // programsPage is how many of a podcast's episodes load at a time.
 const programsPage = 30
 
+// picksShown and hotShown are how many of NetEase's picks and of the most
+// popular the tab lists.
+const (
+	picksShown = 8
+	hotShown   = 12
+)
+
 // podcastData is what the app has of a podcast: what it is, and its
 // episodes, the newest first, as far as they have loaded.
 type podcastData struct {
@@ -324,7 +331,6 @@ type podcastTab struct {
 	picks   []netease.Podcast
 	hot     []netease.Podcast
 	hotPage paged
-	hotAt   int // how far into NetEase's list the next page starts
 	loading bool
 	err     string
 }
@@ -342,7 +348,7 @@ func (a *app) loadPodcastTab() {
 			subs, _ = subscribedPodcasts()
 		}
 		picks, err1 := recommendedPodcasts()
-		hot, more, err2 := hotPodcasts(programsPage, 0)
+		hot, _, err2 := hotPodcasts(hotShown, 0)
 		a.post(func() {
 			t.loading = false
 			if err1 != nil && err2 != nil {
@@ -350,47 +356,10 @@ func (a *app) loadPodcastTab() {
 				return
 			}
 			t.subs, t.picks = subs, picks
-			t.addHot(hot)
-			t.hotPage = paged{loaded: true, more: more && len(hot) > 0}
-			if err2 != nil {
-				t.hotPage.err = "热门播客加载失败"
-			}
+			t.hot = hot
+			t.hotPage = paged{loaded: true}
 		})
 	}()
-}
-
-// loadHotPodcasts loads the next page of the most popular podcasts.
-func (a *app) loadHotPodcasts() {
-	t := a.podcastTab
-	if t.hotPage.loading {
-		return
-	}
-	t.hotPage.loading, t.hotPage.err = true, ""
-	offset := t.hotAt
-	go func() {
-		hot, more, err := hotPodcasts(programsPage, offset)
-		a.post(func() {
-			t.hotPage.loading = false
-			if err != nil {
-				t.hotPage.err = "热门播客加载失败"
-				return
-			}
-			t.addHot(hot)
-			t.hotPage.more = more && len(hot) > 0
-		})
-	}()
-}
-
-// addHot lists a page of the most popular podcasts after those listed,
-// but those already listed: NetEase's pages overlap, a podcast often
-// coming again a page or two later.
-func (t *podcastTab) addHot(page []netease.Podcast) {
-	t.hotAt += len(page)
-	for _, pod := range page {
-		if !slices.ContainsFunc(t.hot, func(p netease.Podcast) bool { return p.ID == pod.ID }) {
-			t.hot = append(t.hot, pod)
-		}
-	}
 }
 
 // subscribed lists a podcast the listener just subscribed to first, once
@@ -423,9 +392,9 @@ func (a *app) podcastsPage(c *ui.Context) {
 		if !t.hotPage.loaded {
 			s := a.pageShimmer(c)
 			a.section(c, "精选播客").Margin(0, 0, 14, 0)
-			a.playlistCardsSkeleton(c, s, cols, 150, true)
+			a.playlistCardsSkeleton(c, s, min(picksShown, cols), 150, true)
 			a.section(c, "热门播客")
-			a.playlistCardsSkeleton(c, s, cols*2, 150, true)
+			a.playlistCardsSkeleton(c, s, min(hotShown, cols*2), 150, true)
 			return
 		}
 		// The first list starts right under the heading.
@@ -445,9 +414,8 @@ func (a *app) podcastsPage(c *ui.Context) {
 			})
 		}
 		list("我的订阅", t.subs)
-		list("精选播客", t.picks)
-		list("热门播客", t.hot)
-		a.pageFoot(c, &t.hotPage, a.loadHotPodcasts)
+		list("精选播客", t.picks[:min(picksShown, len(t.picks))])
+		list("热门播客", t.hot[:min(hotShown, len(t.hot))])
 	})
 }
 

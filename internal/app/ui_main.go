@@ -412,7 +412,7 @@ func (a *app) loadHome() {
 				}
 				return
 			}
-			a.featured, a.charts, a.daily, a.recPlaylists = featured, charts, daily, rec
+			a.featured, a.charts, a.daily, a.recPlaylists = featured, chartsToShow(charts), daily, rec
 			a.homeAt = at
 		})
 	}()

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -12,6 +13,46 @@ import (
 )
 
 const pagePad = 40
+
+// featuredShown is how many of NetEase's recommended playlists the home
+// page lists.
+const featuredShown = 8
+
+// shownCharts are the charts of NetEase's list the 全部榜单 grid keeps,
+// back to front.
+var shownCharts = []int64{
+	8246775932, // 实时热度榜
+	5059644681, // 网易云日语榜
+	3001890046, // 网易云ACG VOCALOID榜
+	3001795926, // 网易云ACG游戏榜
+	3001835560, // 网易云ACG动画榜
+	27135204,   // 法国 NRJ Vos Hits 周榜
+	2809577409, // 网易云欧美新歌榜
+	2809513713, // 网易云欧美热歌榜
+	60131,      // 日本Oricon榜
+	180106,     // UK排行榜周榜
+	745956260,  // 网易云韩语榜
+	71385702,   // 网易云ACG榜
+	71384707,   // 网易云古典榜
+	6732051320, // 俄语榜
+}
+
+// chartsToShow keeps the four charts NetEase leads with, then the ones worth
+// having in the order shownCharts has them.
+func chartsToShow(all []netease.Playlist) []netease.Playlist {
+	official := all[:min(4, len(all))]
+	kept := make([]netease.Playlist, 0, len(official)+len(shownCharts))
+	kept = append(kept, official...)
+	for _, id := range shownCharts {
+		if slices.ContainsFunc(kept, func(p netease.Playlist) bool { return p.ID == id }) {
+			continue
+		}
+		if i := slices.IndexFunc(all, func(p netease.Playlist) bool { return p.ID == id }); i >= 0 {
+			kept = append(kept, all[i])
+		}
+	}
+	return kept
+}
 
 // columns returns how many cards of at least min DIPs fit across the page.
 func (a *app) columns(c *ui.Context, min float32) int {
@@ -75,7 +116,7 @@ func (a *app) homePage(c *ui.Context) {
 
 		a.section(c, "推荐歌单")
 		ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
-			for i := range a.featured {
+			for i := range a.featured[:min(featuredShown, len(a.featured))] {
 				a.playlistCard(c.Key(a.featured[i].ID), &a.featured[i])
 			}
 		})
