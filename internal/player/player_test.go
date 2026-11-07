@@ -286,6 +286,17 @@ type quietStream struct{ silence }
 func (quietStream) Close() error                   { return nil }
 func (quietStream) source() (*download, *spectrum) { return nil, nil }
 
+// closedStream is a song that tells when the player let it go.
+type closedStream struct {
+	quietStream
+	closed atomic.Int32
+}
+
+func (s *closedStream) Close() error {
+	s.closed.Add(1)
+	return nil
+}
+
 // A song that failed to load is asked for once more, so a blink of the
 // network does not leave it failed until the listener plays it again.
 func TestFailedLoadRetriesOnce(t *testing.T) {
@@ -318,4 +329,44 @@ func TestFailedLoadRetriesOnce(t *testing.T) {
 	if p.stream == nil {
 		t.Error("does not play what the retry opened")
 	}
+}
+
+// Changing the track lets the last song go once the output has faded out:
+// one the cache did not keep is held in memory whole, and waiting for the
+// garbage collector kept it there while the next song played.
+func TestTrackChangeLetsTheSongGo(t *testing.T) {
+	ch, p := posted()
+	defer p.out.Close()
+	open, pause := openSong, retryPause
+	defer func() { openSong, retryPause = open, pause }()
+	var first closedStream
+	var opened atomic.Int32
+	openSong = func(*Player, netease.Track, string) (*netease.Stream, stream, error) {
+		if opened.Add(1) == 1 {
+			return &netease.Stream{Level: "exhigh"}, &first, nil
+		}
+		return &netease.Stream{Level: "exhigh"}, quietStream{}, nil
+	}
+	p.PlayQueue([]netease.Track{
+		{ID: 1, Name: "一", Duration: 600000},
+		{ID: 2, Name: "二", Duration: 600000},
+	}, 0)
+	played := func() bool { return p.stream != nil && !p.loading }
+	wait := func(ok func() bool, what string) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for !ok() {
+			if time.Now().After(deadline) {
+				t.Fatal(what)
+			}
+			select {
+			case fn := <-ch:
+				fn()
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	}
+	wait(played, "did not play the first song")
+	p.Next()
+	wait(func() bool { return first.closed.Load() > 0 }, "kept the last song after changing the track")
 }

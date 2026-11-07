@@ -574,6 +574,12 @@ func (p *Player) stop() {
 		out.Pause()
 		time.AfterFunc(100*time.Millisecond, out.Close)
 	}
+	if s := p.stream; s != nil {
+		// A song the cache did not keep is held in memory whole: once the
+		// output has faded out and stopped reading it, let it go, rather
+		// than keep it until the garbage collector gets to it.
+		time.AfterFunc(100*time.Millisecond, func() { s.Close() })
+	}
 	p.out, p.stream, p.info = nil, nil, nil
 	p.seeking = false
 	p.fade.attach(nil, 1)
