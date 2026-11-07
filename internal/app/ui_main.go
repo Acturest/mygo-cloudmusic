@@ -114,6 +114,7 @@ func (a *app) show(r route) {
 	if r.page == pageSearch {
 		a.query, a.searched = r.query, r
 	}
+	a.notePage(r)
 	a.load(r)
 }
 

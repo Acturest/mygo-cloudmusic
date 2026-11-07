@@ -49,6 +49,9 @@ type app struct {
 	route   route
 	history []route
 	forward []route // the pages gone back from, the last first to go to
+	// The pages whose loads are kept, the last shown last: the pages
+	// before it go once more than pagesKept of them are kept.
+	pagesUsed []route
 
 	profile      *netease.Profile
 	mine, saved  []netease.Playlist // the listener's playlists: made, and saved
