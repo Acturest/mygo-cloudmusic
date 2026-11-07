@@ -36,6 +36,25 @@ func TestCommentCountHoldsWhileLoading(t *testing.T) {
 	}
 }
 
+// A long thread keeps only its latest comments: the app used to hold every
+// page it loaded, growing with how far the listener scrolled.
+func TestCommentsTrimmed(t *testing.T) {
+	var cs commentState
+	for i := int64(1); i <= 1000; i++ {
+		cs.latest = append(cs.latest, netease.Comment{ID: i})
+	}
+	cs.trim()
+	if len(cs.latest) != commentKept {
+		t.Fatalf("%d comments kept, want %d", len(cs.latest), commentKept)
+	}
+	if last := cs.latest[len(cs.latest)-1].ID; last != 1000 {
+		t.Errorf("newest comment %d, want 1000", last)
+	}
+	if first := cs.latest[0].ID; first != 1000-commentKept+1 {
+		t.Errorf("oldest kept comment %d, want %d", first, 1000-commentKept+1)
+	}
+}
+
 // Now Playing shows an episode's comments, the episode's and not its
 // audio's, under a tab of their own beside what it is about, which stays
 // chosen as the frames go.

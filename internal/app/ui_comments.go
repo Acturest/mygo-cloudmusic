@@ -23,6 +23,7 @@ type commentState struct {
 	thread  string // whose comments they are, as NetEase names it
 	hot     []netease.Comment
 	latest  []netease.Comment
+	next    int // where the next page starts, in NetEase's list
 	total   int
 	more    bool
 	loaded  bool
@@ -33,6 +34,11 @@ type commentState struct {
 
 // commentPage is how many comments a page loads.
 const commentPage = 30
+
+// commentKept is how many of a thread's latest comments the app keeps: those
+// at the bottom, where the listener is. Those further up go, so that
+// scrolling far down a popular song's thread costs what the pages shown do.
+const commentKept = 300
 
 // commentsFor makes the comments those of tr, loading their first page
 // once it changed: Now Playing does it as it shows, for the count on the
@@ -52,7 +58,7 @@ func (a *app) loadComments() {
 	if cs.loading {
 		return
 	}
-	thread, offset := cs.thread, len(cs.latest)
+	thread, offset := cs.thread, cs.next
 	cs.loading, cs.err = true, ""
 	go func() {
 		page, err := threadComments(thread, offset, commentPage)
@@ -66,6 +72,7 @@ func (a *app) loadComments() {
 				return
 			}
 			cs.loaded = true
+			cs.next = offset + len(page.Latest)
 			if offset == 0 {
 				cs.hot = page.Hot
 			}
@@ -79,9 +86,18 @@ func (a *app) loadComments() {
 					cs.latest = append(cs.latest, cm)
 				}
 			}
+			cs.trim()
 			cs.total, cs.more = page.Total, page.More && len(page.Latest) > 0
 		})
 	}()
+}
+
+// trim drops the latest comments above commentKept: the listener is at the
+// bottom of a thread, and the top is far behind.
+func (cs *commentState) trim() {
+	if n := len(cs.latest) - commentKept; n > 0 {
+		cs.latest = cs.latest[:copy(cs.latest, cs.latest[n:])]
+	}
 }
 
 // commentsTab names the comments' pane, with how many there are.
