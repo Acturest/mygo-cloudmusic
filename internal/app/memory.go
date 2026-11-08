@@ -11,6 +11,14 @@ import (
 // it goes, rather than grow to the session's peak and keep it.
 const heapLimit = 96 << 20
 
+// gcPercent keeps the heap tight: playing a song decodes it a frame at a
+// time, and go-mp3 makes about two megabytes of garbage a second doing it.
+// At the default the runtime lets the heap drift to twice what the app can
+// reach on a page, which is 20 MB the task manager shows. Holding it to a
+// quarter costs the collector a pass a second, which does not show on the
+// clock.
+const gcPercent = 25
+
 // releaseEvery is how often the pages left behind give their memory back at
 // most: pages change on clicks, and giving the heap back pauses a few
 // milliseconds while Windows gets it.

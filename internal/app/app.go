@@ -194,6 +194,7 @@ func (a *app) showMain() {
 // Run runs the app until it quits.
 func Run() error {
 	debug.SetMemoryLimit(heapLimit)
+	debug.SetGCPercent(gcPercent)
 	a := &app{
 		playlists:  map[int64]*netease.Playlist{},
 		loadingPl:  map[int64]bool{},
