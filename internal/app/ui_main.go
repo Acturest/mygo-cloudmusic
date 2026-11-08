@@ -115,6 +115,7 @@ func (a *app) show(r route) {
 		a.query, a.searched = r.query, r
 	}
 	a.notePage(r)
+	a.releaseMemory()
 	a.load(r)
 }
 

@@ -21,6 +21,8 @@ func (a *app) setLite(on bool) {
 		if a.win != nil {
 			a.win.Hide()
 		}
+		// Away for a while: the covers shown, and the heap, go back.
+		a.releaseMemory()
 	} else {
 		a.lite = false
 		a.pl.SetRepeat(a.liteRepeat)

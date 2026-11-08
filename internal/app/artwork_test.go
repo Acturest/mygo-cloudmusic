@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"testing"
@@ -64,6 +65,29 @@ func TestArtCacheKeepsCoversUnderLimit(t *testing.T) {
 	}
 	if c.get("page", false) != page {
 		t.Error("dropped a cover not asked for in an hour, under the limit")
+	}
+}
+
+// Once a page stops showing, the covers it loaded go back, down to what the
+// cache keeps at rest, so that a session through many of them does not keep
+// every cover it showed; those asked for last stay.
+func TestArtCacheShrinksWhenThePageGoes(t *testing.T) {
+	now := time.Unix(1e9, 0)
+	c := newArtCache(func(func()) {})
+	c.now = func() time.Time { return now }
+	for i := range 20 {
+		now = now.Add(time.Second)
+		c.add(fmt.Sprintf("cover%d", i), &artwork{used: now, size: 1 << 20})
+	}
+	c.shrink()
+	if c.size > artResting {
+		t.Errorf("kept %d bytes at rest, want at most %d", c.size, artResting)
+	}
+	if _, ok := c.art["cover19"]; !ok {
+		t.Error("dropped the cover asked for last")
+	}
+	if _, ok := c.art["cover0"]; ok {
+		t.Error("kept the cover asked for first")
 	}
 }
 

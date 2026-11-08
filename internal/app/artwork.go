@@ -54,6 +54,11 @@ type artCache struct {
 // however long ago it showed them, rather than loading them again.
 const artLimit = 64 << 20
 
+// artResting is how many bytes of covers the cache keeps once a page stops
+// showing: a list of a thousand rows takes a few megabytes of covers, which
+// it loads again from its own page rather than keep for a session.
+const artResting = 8 << 20
+
 func newArtCache(post func(func())) *artCache {
 	return &artCache{art: map[string]*artwork{}, gone: map[string]weak.Pointer[artwork]{}, busy: map[string]bool{}, sem: make(chan struct{}, 8), post: post, now: time.Now, limit: artLimit}
 }
@@ -64,7 +69,21 @@ func newArtCache(post func(func())) *artCache {
 func (c *artCache) add(key string, a *artwork) {
 	c.art[key] = a
 	c.size += a.size
-	if c.size <= c.limit {
+	if c.size > c.limit {
+		c.evict(c.limit * 3 / 4)
+	}
+}
+
+// shrink gives back the covers of the pages left behind, down to artResting:
+// the ones asked for least recently go, and load again if a page asks.
+func (c *artCache) shrink() {
+	c.evict(artResting)
+}
+
+// evict drops the covers asked for least recently until the cache takes no
+// more than keep bytes. Those showing were asked for last, and stay.
+func (c *artCache) evict(keep int) {
+	if c.size <= keep {
 		return
 	}
 	for key, p := range c.gone {
@@ -78,7 +97,7 @@ func (c *artCache) add(key string, a *artwork) {
 	}
 	slices.SortFunc(keys, func(x, y string) int { return c.art[x].used.Compare(c.art[y].used) })
 	for _, key := range keys {
-		if c.size <= c.limit*3/4 {
+		if c.size <= keep {
 			break
 		}
 		a := c.art[key]

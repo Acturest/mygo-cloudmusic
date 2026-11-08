@@ -2,6 +2,7 @@ package app
 
 import (
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -148,9 +149,10 @@ type app struct {
 	settingsWin *mygo.Window
 	cacheUsed   int64 // the bytes the song cache takes, -1 until measured
 
-	restored     bool   // playback picked up where it was left
-	savedSession string // the session as last kept
-	sessionDue   bool   // a save of the session is due
+	restored     bool      // playback picked up where it was left
+	savedSession string    // the session as last kept
+	sessionDue   bool      // a save of the session is due
+	releasedAt   time.Time // when the heap last went back to Windows
 }
 
 // post runs fn on the main thread and redraws both windows. Without a
@@ -191,6 +193,7 @@ func (a *app) showMain() {
 
 // Run runs the app until it quits.
 func Run() error {
+	debug.SetMemoryLimit(heapLimit)
 	a := &app{
 		playlists:  map[int64]*netease.Playlist{},
 		loadingPl:  map[int64]bool{},
