@@ -119,7 +119,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	dim, quiet := a.quietShown(c, box, tr, lines, loaded)
 	if len(lines) == 0 {
 		box.Children(func() {
-			quietUnder(ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center(), dim).Children(func() {
+			quietUnder(ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().PassThrough(), dim).Children(func() {
 				if !loaded {
 					stageSkeleton(c, npShimmer(c), f, w)
 					return
