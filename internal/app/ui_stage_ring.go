@@ -26,18 +26,14 @@ const (
 	ringOrbitFollow = 0.52 // how far a line behind orbits with the song
 	ringLead        = 340 * time.Millisecond
 	ringMinorRatio  = 0.09 // the ellipse's minor radius, of the major
-	// The ellipse is edge-on, so the back it turns into is a flat strip:
-	// characters turning past the end crowd into a heap there and read as
-	// stray glyphs cut loose from the line. Folia works the same geometry
-	// but fades everything outside the window it is focused on; the same
-	// window keeps a line's own wrapped text from making that heap.
-	ringTurnFade = math.Pi/2 - 0.55 // where a character starts to dissolve
-	ringTurnSpan = 0.28             // how far past it before it is gone
-	ringTiltDeg     = 45
-	ringPowerMult   = 0.25 // normal animation intensity
-	ringPowerMax    = 1.25
-	ringFocusScale  = 0.65
-	ringWeight      = 700
+	// The ellipse is edge-on, so the back it turns into is a flat strip.
+	// Characters there shrink, blur and dim the way Folia fades them, and
+	// the ones past the far end crowd into a faint smudge behind the ring.
+	ringTiltDeg    = 45
+	ringPowerMult  = 0.25 // normal animation intensity
+	ringPowerMax   = 1.25
+	ringFocusScale = 0.65
+	ringWeight     = 700
 	// The spring that turns the ring from one line to the next, as Folia's
 	// stiffness 55, damping 14, mass 0.9.
 	ringTurnStiffness = 55.0 / 0.9
@@ -233,11 +229,10 @@ func (a *app) claddaghRing(c *ui.Context, lines []lyrics.Line, cur int, pos time
 			localCos := float32(math.Cos(float64(thetaCurve)))
 			depth := (localCos + 1) / 2
 
-			// Folia compresses x by 0.35+0.65*D^1.2, which pulls the glyphs near the
-			// sides of the ring towards the centre and off the ellipse (with a 0.09
-			// minor axis they read as detached characters). Keeping the radius on
-			// the ellipse fixes that; the front of the ring is identical either way.
-			rawX := ringSin(thetaCurve) * rMajor
+			// Folia narrows x as a character goes round the back; together with the
+			// squash of the minor axis that is what makes the ring read as a ring.
+			spacing := 0.35 + 0.65*ringPow(depth, 1.2)
+			rawX := ringSin(thetaCurve) * rMajor * spacing
 			rawY := localCos * rMinor
 			if line.Chorus {
 				stagger := f * (0.06 + power*0.12)
@@ -278,9 +273,6 @@ func (a *app) claddaghRing(c *ui.Context, lines []lyrics.Line, cur int, pos time
 				if localCos > threshold {
 					opacity *= clamp01(1 - (localCos-threshold)/0.15)
 				}
-			}
-			if over := float32(math.Abs(float64(psi))) - ringTurnFade; over > 0 {
-				opacity *= clamp01(1 - over/ringTurnSpan)
 			}
 			if opacity < 0.004 {
 				continue
