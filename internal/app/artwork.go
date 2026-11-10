@@ -80,6 +80,12 @@ func (c *artCache) shrink() {
 	c.evict(artResting)
 }
 
+// clear gives back every cover the session showed, as light mode does when
+// the window goes away: each loads again if a page asks for it.
+func (c *artCache) clear() {
+	c.evict(0)
+}
+
 // evict drops the covers asked for least recently until the cache takes no
 // more than keep bytes. Those showing were asked for last, and stay.
 func (c *artCache) evict(keep int) {

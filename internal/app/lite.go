@@ -21,12 +21,18 @@ func (a *app) setLite(on bool) {
 		if a.win != nil {
 			a.win.Hide()
 		}
-		// Away for a while: the covers shown, and the heap, go back.
-		a.releaseMemory()
+		// Away for a while: the pages' caches and the covers go, and the
+		// heap goes with them, leaving what a window just opened takes.
+		a.releaseAll()
 	} else {
 		a.lite = false
 		a.pl.SetRepeat(a.liteRepeat)
 		a.showMain()
+		// What the page showed was given back; it loads again as the window
+		// comes back to it. Tests have no window to come back to.
+		if a.win != nil {
+			a.load(a.route)
+		}
 	}
 	a.refreshTrayMenu()
 	a.redraw()
