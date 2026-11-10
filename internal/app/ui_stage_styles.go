@@ -28,7 +28,9 @@ var stageStyles = []struct{ id, label string }{
 }
 
 // stageStyleButton names the stage's style, and opens the menu of the
-// others.
+// others below it: one of the app's own dropdowns, in its colors and with
+// its motion, rather than a menu of the system's, which would show light
+// over the stage on a light Windows and smaller than the app's type.
 func (a *app) stageStyleButton(c *ui.Context) {
 	label := stageStyles[0].label
 	for _, s := range stageStyles {
@@ -37,9 +39,9 @@ func (a *app) stageStyleButton(c *ui.Context) {
 		}
 	}
 	b := ui.ButtonBase(c.Key("stage-style")).Padding(6, 10, 6, 14).Radius(999).Gap(4).AlignItems(ui.Center).
-		FocusRing(false).Label("律动效果").Tooltip("律动效果")
+		FocusRing(false).Label("律动效果").Tooltip("律动效果").Expanded(a.styleOpen)
 	bg, fg := ui.Transparent, white.Alpha(0.55)
-	if b.Hovered() {
+	if b.Hovered() || a.styleOpen {
 		bg, fg = white.Alpha(0.06), white.Alpha(0.8)
 	}
 	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
@@ -47,19 +49,65 @@ func (a *app) stageStyleButton(c *ui.Context) {
 		ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(fg)
 		ui.Icon(c, iconDown).Size(12, 12).TextColor(fg)
 	})
-	b.Menu(func(m *ui.Menu) {
-		for _, s := range stageStyles {
-			if m.Item(s.label).Checked(a.settings.StageStyle == s.id).Chosen() && a.settings.StageStyle != s.id {
-				a.settings.StageStyle = s.id
-				a.settings.save()
+	if b.Clicked() {
+		a.styleOpen = !a.styleOpen
+	}
+	a.stageStyleMenu(c, b)
+}
+
+// stageStyleMenu drops below the style button: the styles the stage can
+// set its lyrics in, the one in use checked, and the sparks.
+func (a *app) stageStyleMenu(c *ui.Context, row ui.Element) {
+	pop := popoverColors(a.pal.dark)
+	ui.PopoverBase(c.Key("stage-style-menu"), row, &a.styleOpen, func(panel ui.Element) {
+		panel.AttachTo(row, ui.AnchorBottomStart, ui.AnchorTopStart).Margin(6, 0, 0, 0).Padding(4).Gap(1).MinWidth(108).
+			Radius(12).Background(pop.fill).Border(0.5, pop.edge).Shadow(0, 8, 24, -4, ui.RGBA(0, 0, 0, 0.2)).
+			Role(ui.RoleMenu).FocusGroup(ui.Vertical).Label("律动效果").TransformOrigin(0.5, 0).
+			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.96, Y: -4}, Exit: &ui.Motion{Scale: 0.98}})
+		chosen := 0
+		for i, s := range stageStyles {
+			if s.id == a.settings.StageStyle {
+				chosen = i
 			}
 		}
-		m.Separator()
-		if m.Item("火花").Checked(a.settings.StageSparks).Chosen() {
+		for i, s := range stageStyles {
+			item := a.stageStyleItem(c, s.label, i == chosen)
+			if i == chosen {
+				item.AutoFocus()
+			}
+			if item.Clicked() && i != chosen {
+				a.settings.StageStyle = s.id
+				a.settings.save()
+				a.styleOpen = false
+			}
+		}
+		ui.Box(c).Height(0.5).Margin(4, 8).Background(pop.edge)
+		if a.stageStyleItem(c, "火花", a.settings.StageSparks).Clicked() {
 			a.settings.StageSparks = !a.settings.StageSparks
 			a.settings.save()
+			a.styleOpen = false
 		}
 	})
+}
+
+// stageStyleItem is a line of the stage's menu: a check where it is on,
+// and its name.
+func (a *app) stageStyleItem(c *ui.Context, label string, on bool) ui.Element {
+	p := a.pal
+	b := ui.ButtonBase(c.Key(label)).Role(ui.RoleMenuItem).Label(label).Height(30).PaddingX(8).Gap(8).Radius(7).
+		AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
+	if b.Hovered() || b.FocusVisible() {
+		b.Background(p.press)
+	}
+	b.Children(func() {
+		if on {
+			ui.Icon(c, iconCheck).Size(15, 15).TextColor(p.accent)
+		} else {
+			ui.Box(c).Size(15, 15)
+		}
+		ui.Text(c, label).FontSize(13).TextColor(white)
+	})
+	return b
 }
 
 // sparkTime is how long a word's sparks fly.
@@ -265,7 +313,7 @@ func (a *app) partitaLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, h
 				}).
 				Children(func() {
 					for i, w := range words {
-						a.stageWord(c.Key(i), w, shapes[i], pos, l.At, f, accent)
+						a.stageWord(c.Key(i), w, shapes[i], pos, f, accent)
 					}
 				})
 		}

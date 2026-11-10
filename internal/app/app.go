@@ -65,6 +65,7 @@ type app struct {
 	recPlaylists []netease.Playlist // the day's playlists picked for the listener
 	login        loginState
 	accountOpen  bool           // the dropdown of the account row shows
+	styleOpen    bool           // the dropdown of the stage's styles shows
 	naming       nameDialog     // the name of a playlist asked for
 	deleting     deleteDialog   // whether to delete a playlist, asked
 	liked        map[int64]bool // the songs the listener likes
@@ -130,6 +131,8 @@ type app struct {
 	volume     float64
 	volumeOpen bool // the volume popover of the player bar shows
 	mutedFrom  float64
+
+	ring ringState // 回环's turn, sound and measured lines
 
 	rowBars barState
 	// underTop and underBottom say whether the page has content under its

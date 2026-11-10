@@ -16,10 +16,14 @@ import (
 // from where playback is, so seeking shows the same frame playing would.
 
 const (
-	// stageLead is how long before it is sung a word starts to show.
+	// stageLead is how long before it is sung the stage asks for the frame
+	// a word springs in on.
 	stageLead = 300 * time.Millisecond
-	// stageSungScale is how much larger a word is as it is sung.
-	stageSungScale = 1.12
+	// stagePop is how long before it is sung a word starts to spring in.
+	stagePop = 80 * time.Millisecond
+	// stageSungScale is how much larger a word springs to as it is sung,
+	// before it settles back to its size.
+	stageSungScale = 1.4
 )
 
 // wordShape is where a word sits and leans, the same for a line each time;
@@ -27,7 +31,7 @@ const (
 type wordShape struct {
 	x, y, rotate, scale, drift float32
 	margin                     float32
-	last, pulse, ghost         bool
+	last, pulse                bool
 }
 
 // lineRandom is a small random number generator seeded by a line and a word,
@@ -97,13 +101,19 @@ func spaceWords(shapes []wordShape, widths []float32, gap float32) {
 	}
 }
 
+// stageBarHeight is how much of the window's foot the stage bar takes:
+// its padding and the row of art, title and controls.
+const stageBarHeight float32 = 96
+
 // stage shows the lyrics of tr on the whole stage.
 func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 	pl := a.pl
 	lines, loaded := pl.Lyrics()
 	w, h := c.Size()
 	f := min(64, max(36, w*0.045))
-	box := ui.Box(c.Key("stage")).Grow(1)
+	// The stage is the whole window, over the tabs and the bar at its
+	// foot, so that what it centers is centered in the window.
+	box := ui.Box(c.Key("stage")).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough()
 	// In a quiet part a hot comment takes the middle, the lyrics nearly
 	// gone under it (ui_quiet.go).
 	dim, quiet := a.quietShown(c, box, tr, lines, loaded)
@@ -144,7 +154,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 				// A long break before the next line.
 				a.interlude(c, pos, lines[cur].End, lines[cur+1].At)
 			case a.settings.StageStyle == "claddagh":
-				claddaghRing(c, lines, cur, pos, w, h, f, accent, pl.Playing())
+				a.claddaghRing(c, lines, cur, pos, w, h, f, accent, pl.Playing())
 				a.stageFoot(c, lines, cur)
 			default:
 				// The line before goes as the new one comes.
@@ -164,7 +174,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 // stageFoot shows the translation of the line being sung, and the one
 // coming next, along the foot.
 func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int) {
-	ui.Column(c).Absolute().Left(0).Right(0).Bottom(24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
+	ui.Column(c).Absolute().Left(0).Right(0).Bottom(stageBarHeight+24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
 		if cur >= 0 && lines[cur].Translation != "" {
 			ui.Text(c.Key("translation"), lines[cur].Translation).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
 		}
@@ -232,56 +242,50 @@ func (a *app) stageLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w, 
 		Wrap().Justify(justify).AlignContent(ui.Center).AlignItems(ui.Center).Translate(0, lift).
 		Opacity(fade).PassThrough().Children(func() {
 		for i, word := range l.Words {
-			a.stageWord(c.Key(i), word, shapes[i], pos, l.At, f, accent)
+			a.stageWord(c.Key(i), word, shapes[i], pos, f, accent)
 		}
 	})
 }
 
-// stageWord shows a word as it is at pos: fading in before it is sung,
-// rising into its place as it is sung, then settling and drifting.
-func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.Duration, lineAt time.Duration, f float32, accent ui.Color) {
-	start := word.Start - stageLead
+// stageWord shows a word as it is at pos: out of sight off to its own side
+// before it is sung, springing into its place as it is sung — larger than it
+// settles, turned, out of focus — then settling back and drifting. Every
+// style lays its words out differently; this is where they all arrive.
+func (a *app) stageWord(c *ui.Context, word lyrics.Word, s wordShape, pos time.Duration, f float32, accent ui.Color) {
+	start := word.Start - stagePop
 	end := max(word.End, word.Start+150*time.Millisecond)
 	since := float32((pos - start).Seconds())
 	after := float32((pos - end).Seconds())
 	singing := float32(max(0.08, (end - word.Start).Seconds()))
 
-	// Ahead of the word it fades in where it will sit: small, a little
-	// turned and out of focus, so that a line reads whole before it is
-	// sung. 心象 keeps its fragments about the stage, fainter still.
-	lit := clamp01(float32((pos - lineAt).Seconds()) / 0.45)
-	x, y := s.x, s.y+6
-	scale := lerp(s.scale*0.9, s.scale*0.97, lit)
-	rotate := lerp(s.rotate-4, s.rotate-1.5, lit)
-	opacity := lerp(0.16, 0.5, lit)
-	blur := lerp(5, 2.5, lit)
-	color := white.Alpha(lerp(0.34, 0.58, lit))
-	if s.ghost {
-		scale, rotate, opacity, blur = s.scale*0.92, s.rotate, 0.34, 2
-		color = white.Alpha(0.55)
-	}
+	// Waiting: small, set off to a side of its own, turned away and out of
+	// focus, so that it springs in from there rather than fading in where
+	// it will sit, and so that a line reads whole only as it is sung.
+	x := s.x + float32(math.Sin(float64(s.y)))*100
+	y := s.y + float32(math.Cos(float64(s.x)))*50
+	scale, rotate, opacity, blur := float32(0.5), s.rotate+20, float32(0), float32(10)
+	color := white.Alpha(0.5)
 	glow := float32(0)
 	if since > 0 {
-		// Sung: rising into its place, larger, sharp, filling with light,
-		// on a spring soft enough that it settles rather than snaps.
-		e := springStep(since / 1.6)
-		y = lerp(y, s.y, e)
-		scale = lerp(scale, s.scale*stageSungScale, e)
-		rotate = lerp(rotate, s.rotate, e)
-		opacity = lerp(opacity, 1, easeOutCubic(clamp01(since/0.4)))
-		blur = lerp(blur, 0, clamp01(since/0.35))
-		color = white.Alpha(lerp(0.62, 1, clamp01(since/0.35)))
-		glow = easeOutCubic(clamp01(since / max(0.12, 0.45*singing)))
+		// Sung: springing to its place, larger for a moment, sharp, filling
+		// with light.
+		e := springStep(since)
+		x, y = lerp(x, s.x, e), lerp(y, s.y, e)
+		scale, rotate = lerp(0.5, s.scale*stageSungScale, e), lerp(s.rotate+20, s.rotate, e)
+		opacity = clamp01(since / 0.1)
+		blur = 10 * (1 - clamp01(since/0.2))
+		color = white.Alpha(lerp(0.5, 1, clamp01(since/singing)))
+		glow = clamp01(since / max(0.08, 0.3*singing))
 	}
 	if after > 0 {
-		// Past: back to its size, a little dimmer, its light going slowly
-		// as it drifts.
-		q := easeOutCubic(after / 0.7)
+		// Past: back to its size, a little dimmer, its light going, drifting
+		// as it rests.
+		q := easeOutCubic(after / 0.5)
 		scale = lerp(s.scale*stageSungScale, s.scale, q)
-		opacity = lerp(1, 0.78, q)
-		rotate = s.rotate + s.drift*clamp01(after/6)
-		color = white.Alpha(lerp(1, 0.62, q))
-		glow = 1 - easeOutCubic(clamp01(after/1.4))
+		opacity = lerp(1, 0.82, q)
+		rotate = s.rotate + s.drift*clamp01(after/5)
+		color = white.Alpha(lerp(1, 0.5, easeOutCubic(after/0.8)))
+		glow = 1 - clamp01(after/0.9)
 	}
 	if s.pulse && since > 0 && after <= 0 {
 		// 心象 swells the word it is singing.

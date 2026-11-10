@@ -357,7 +357,7 @@ func qualityBadge(c *ui.Context, st *netease.Stream) {
 // it is, and the controls.
 func (a *app) stageBar(c *ui.Context, tr *netease.Track, art *artwork, accent ui.Color) {
 	pl := a.pl
-	ui.Column(c).Padding(0, 48, 28, 48).Gap(10).Children(func() {
+	ui.Column(c).Absolute().Left(0).Right(0).Bottom(0).Height(stageBarHeight).Padding(0, 48, 28, 48).Gap(10).Children(func() {
 		a.scrubber(c.Key("stage-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 14, accent.Mix(white, 0.35))
 		ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Gap(12).AlignItems(ui.Center).Children(func() {

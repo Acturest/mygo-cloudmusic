@@ -18,10 +18,15 @@ func TestStageStyleMenu(t *testing.T) {
 		if err := tt.Click("律动效果"); err != nil {
 			t.Fatal(err)
 		}
-		if err := tt.ChooseMenuItem(c.item); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		tt.Advance(200 * time.Millisecond)
+		tt.Frame()
+		if err := tt.Click(c.item); err != nil {
+			t.Fatalf("%v; the menu is open: %v", err, a.styleOpen)
 		}
 		tt.Frame()
+		if a.styleOpen {
+			t.Errorf("chose %s: the menu stays open", c.item)
+		}
 		if a.settings.StageStyle != c.want {
 			t.Errorf("chose %s: style %q, want %q", c.item, a.settings.StageStyle, c.want)
 		}
@@ -39,8 +44,10 @@ func TestStageSparksMenu(t *testing.T) {
 		if err := tt.Click("律动效果"); err != nil {
 			t.Fatal(err)
 		}
-		if err := tt.ChooseMenuItem("火花"); err != nil {
-			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		tt.Advance(200 * time.Millisecond)
+		tt.Frame()
+		if err := tt.Click("火花"); err != nil {
+			t.Fatalf("%v; the menu is open: %v", err, a.styleOpen)
 		}
 		tt.Frame()
 		if a.settings.StageSparks != want || a.settings.StageStyle != "tilt" {
@@ -118,3 +125,4 @@ func TestTiltSplitsAtPunctuation(t *testing.T) {
 		t.Errorf("split at %d, not after 星，", parts[0].to)
 	}
 }
+
