@@ -213,6 +213,19 @@ func (a *app) settingsView(c *ui.Context) {
 					a.changed()
 				}
 			})
+			row("列表", "歌曲列表的样式：斑马纹隔行着色，紧凑则行更短、不显示封面，一屏能放下更多歌", func() {
+				styles := []string{listPlain, listZebra, listCompact}
+				i := 0
+				for k, style := range styles {
+					if style == s.ListStyle {
+						i = k
+					}
+				}
+				if segmented(c.Key("list-style"), &i, "默认", "斑马纹", "紧凑") {
+					s.ListStyle = styles[i]
+					a.changed()
+				}
+			})
 			row("字体", "歌词与界面的字体；内置的 獅尾四季春加糖 是一款衬线字体", func() {
 				labels := []string{"系统默认", "獅尾四季春加糖 SC"}
 				chosen := labels[0]

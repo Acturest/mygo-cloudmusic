@@ -21,6 +21,7 @@ type palette struct {
 	hairline  ui.Color
 	hover     ui.Color
 	press     ui.Color
+	zebra     ui.Color // every other row, in a list set to zebra
 	accent    ui.Color
 	onAccent  ui.Color
 	cardShade ui.Color
@@ -38,6 +39,7 @@ func paletteFor(t *ui.Theme) palette {
 			hairline:  ui.RGBA(255, 255, 255, 0.07),
 			hover:     ui.RGBA(255, 255, 255, 0.06),
 			press:     ui.RGBA(255, 255, 255, 0.1),
+			zebra:     ui.RGBA(255, 255, 255, 0.018),
 			accent:    ui.Oklch(0.66, 0.2, 22),
 			onAccent:  ui.Hex("#ffffff"),
 			cardShade: ui.RGBA(0, 0, 0, 0.45),
@@ -52,6 +54,7 @@ func paletteFor(t *ui.Theme) palette {
 		hairline:  ui.RGBA(0, 0, 0, 0.07),
 		hover:     ui.RGBA(0, 0, 0, 0.04),
 		press:     ui.RGBA(0, 0, 0, 0.08),
+		zebra:     ui.RGBA(0, 0, 0, 0.014),
 		accent:    ui.Oklch(0.6, 0.21, 24),
 		onAccent:  ui.Hex("#ffffff"),
 		cardShade: ui.RGBA(0, 0, 0, 0.16),

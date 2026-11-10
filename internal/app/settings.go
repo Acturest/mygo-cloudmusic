@@ -64,11 +64,25 @@ type settings struct {
 	// CacheDir is where the songs are kept, instead of under the app's
 	// cache directory; empty keeps them there.
 	CacheDir string `json:"cacheDir,omitempty"`
+	// ListStyle is how songs are listed: the app's own, tinted row by row,
+	// or shorter rows without covers.
+	ListStyle string `json:"listStyle,omitempty"`
 	// SearchHistory keeps submitted keywords, most recent first.
 	SearchHistory []string `json:"searchHistory,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }
+
+// How the app lists songs, as settings.ListStyle has it.
+const (
+	// listPlain lists them one after another, on the page's background.
+	listPlain = ""
+	// listZebra tints every other row.
+	listZebra = "zebra"
+	// listCompact tints them as listZebra does, in rows short enough for
+	// more songs to a screen, without the covers.
+	listCompact = "compact"
+)
 
 func defaultSettings() settings {
 	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
