@@ -41,9 +41,14 @@ func TestArtistNameOpensTheirPage(t *testing.T) {
 
 	tt.Advance(time.Second)
 	tt.Frame()
-	if err := tt.Click("丙"); err != nil {
-		t.Fatal(err)
+	// A row crediting one artist shows their name as its whole RichText,
+	// which mygo 0.8's Tester finds before the link drawn over it: click
+	// where the name is, as a pointer would.
+	name, ok := tt.Find("丙")
+	if !ok {
+		t.Fatal("no 丙 to click")
 	}
+	tt.ClickAt(name.X+name.W/2, name.Y+name.H/2)
 	tt.Frame()
 	if a.route != (route{page: pageArtist, id: 13}) {
 		t.Fatalf("a row's artist opened %+v", a.route)
