@@ -21,6 +21,9 @@ type Line struct {
 	// Timed says the words carry their own times, as NetEase's word-timed
 	// lyrics give them; else they share the line's time evenly.
 	Timed bool
+	// Chorus says the line is one of the song's chorus, as Folia finds it:
+	// the text that comes round most often in the lyrics.
+	Chorus bool
 }
 
 // A Word is a word of a line, or a character of Chinese or Japanese,
@@ -108,47 +111,46 @@ func parseYRC(yrc string) []Line {
 }
 
 // Build makes the lines to show from what NetEase serves: the
-// word-timed lyrics where there are some, else the timed lines, with the
-// translation of each.
+// word-timed lyrics where there are some and they keep the song's times,
+// else the timed lines with each word's time estimated as Folia estimates
+// it, and the translation of each.
 func Build(lrc, translation, yrc string) []Line {
+	plain := make([]Line, 0, 64)
+	for _, l := range parseLRC(lrc) {
+		if l.Text != "" {
+			plain = append(plain, l)
+		}
+	}
 	var lines []Line
 	if yrc != "" {
-		lines = parseYRC(yrc)
+		if timed := parseYRC(yrc); trustYRC(timed, plain) {
+			lines = timed
+		}
 	}
 	if len(lines) == 0 {
-		for _, l := range parseLRC(lrc) {
-			if l.Text != "" {
-				lines = append(lines, l)
-			}
-		}
+		lines = append(lines, plain...)
 		for i := range lines {
-			end := lines[i].At + 6*time.Second
-			if i+1 < len(lines) {
-				end = min(end, lines[i+1].At)
+			next, hasNext := time.Duration(0), i+1 < len(lines)
+			if hasNext {
+				next = lines[i+1].At
 			}
-			lines[i].End = end
-			lines[i].Words = SpreadWords(lines[i].Text, lines[i].At, end)
+			lines[i].End = lineEnd(lines[i].Text, lines[i].At, next, hasNext)
+			lines[i].Words = SpreadWords(lines[i].Text, lines[i].At, lines[i].End)
 		}
 	}
-	// Translations go to the line nearest their time: word-timed lines
-	// start a little off the timed lines the translation follows.
+	markChorus(lines, lrc)
+	entries := make([]Line, 0, 64)
 	for _, t := range parseLRC(translation) {
-		if t.Text == "" {
-			continue
+		if t.Text != "" {
+			entries = append(entries, t)
 		}
-		best, bestGap := -1, 1500*time.Millisecond
-		for i := range lines {
-			gap := lines[i].At - t.At
-			if gap < 0 {
-				gap = -gap
-			}
-			if gap < bestGap {
-				best, bestGap = i, gap
-			}
-		}
-		if best >= 0 && lines[best].Translation == "" {
-			lines[best].Translation = t.Text
-		}
+	}
+	times := make([]time.Duration, len(lines))
+	for i := range lines {
+		times[i] = lines[i].At
+	}
+	for i, t := range pairTranslations(times, entries) {
+		lines[i].Translation = t
 	}
 	return lines
 }
@@ -159,18 +161,96 @@ func mergeLyrics(lrc, translation string) []Line {
 	return Build(lrc, translation, "")
 }
 
-// SpreadWords splits text into words, each Chinese, Japanese or Korean
-// character one of them, and shares the time from start to end among them
-// by their lengths, for lines whose words have no times of their own.
-func SpreadWords(text string, start, end time.Duration) []Word {
-	var words []string
-	var cur strings.Builder
-	flush := func() {
-		if cur.Len() > 0 {
-			words = append(words, cur.String())
-			cur.Reset()
+// translationWindow is how far a translation may sit from the line it
+// belongs to: word-timed lines start a little off the timed lines the
+// translation follows.
+const translationWindow = 1500 * time.Millisecond
+
+// pairTranslations gives the lines at startTimes their translations, as
+// Folia pairs them: closest first, each line and each translation used
+// once, so that lines starting together take their own translations rather
+// than both taking the first one's.
+func pairTranslations(startTimes []time.Duration, entries []Line) []string {
+	out := make([]string, len(startTimes))
+	type pair struct {
+		line, entry int
+		gap         time.Duration
+	}
+	pairs := make([]pair, 0, len(startTimes)*2)
+	for i, at := range startTimes {
+		for j, e := range entries {
+			gap := e.At - at
+			if gap < 0 {
+				gap = -gap
+			}
+			if gap < translationWindow {
+				pairs = append(pairs, pair{i, j, gap})
+			}
 		}
 	}
+	sort.SliceStable(pairs, func(a, b int) bool {
+		if pairs[a].gap != pairs[b].gap {
+			return pairs[a].gap < pairs[b].gap
+		}
+		if pairs[a].line != pairs[b].line {
+			return pairs[a].line < pairs[b].line
+		}
+		return pairs[a].entry < pairs[b].entry
+	})
+	lineTaken := make([]bool, len(startTimes))
+	entryTaken := make([]bool, len(entries))
+	for _, p := range pairs {
+		if lineTaken[p.line] || entryTaken[p.entry] {
+			continue
+		}
+		lineTaken[p.line], entryTaken[p.entry] = true, true
+		out[p.line] = entries[p.entry].Text
+	}
+	return out
+}
+
+// lyricPunctuation is what is sung too fast to take time of its own.
+const lyricPunctuation = "，。！？、：；\"'）"
+
+// lineEnd is when a line sung from at ends, as Folia puts it: at the next
+// line, but no later than a reading of it allows, so that a long break in
+// the song stays a break instead of the line's words walking over it.
+func lineEnd(text string, at, next time.Duration, hasNext bool) time.Duration {
+	d := 5 * time.Second
+	if hasNext {
+		d = next - at
+	}
+	reading := time.Duration(float64(utf8.RuneCountInString(text)) * 0.5 * float64(time.Second))
+	if d > reading+2*time.Second && d > 5*time.Second {
+		d = min(d, reading+2*time.Second)
+	}
+	return at + d
+}
+
+// SpreadWords splits text into words, each Chinese, Japanese or Korean
+// character one of them, and shares the time from start to end among them
+// by their weights, as Folia spreads a line that has no word times of its
+// own: a sung character or a word counts one, a word longer by its letters,
+// and punctuation almost nothing. Singing takes nine tenths of the line,
+// the rest being the pause before the next.
+func SpreadWords(text string, start, end time.Duration) []Word {
+	type token struct {
+		text   string
+		weight float64
+	}
+	var tokens []token
+	var cur strings.Builder
+	var total float64
+	flush := func() {
+		if cur.Len() == 0 {
+			return
+		}
+		w := 1 + float64(utf8.RuneCountInString(strings.TrimSpace(cur.String())))*0.15
+		tokens = append(tokens, token{text: cur.String(), weight: w})
+		total += w
+		cur.Reset()
+	}
+	sung := false // the word before is Chinese or Japanese
 	for _, r := range text {
 		switch {
 		case unicode.IsSpace(r):
@@ -180,27 +260,50 @@ func SpreadWords(text string, start, end time.Duration) []Word {
 			}
 		case isCJK(r):
 			flush()
-			words = append(words, string(r))
+			tokens = append(tokens, token{text: string(r), weight: 1})
+			total++
+			sung = true
+		case sung && strings.ContainsRune(lyricPunctuation, r):
+			// Punctuation after Chinese or Japanese is not sung long.
+			flush()
+			tokens = append(tokens, token{text: string(r)})
 		default:
 			cur.WriteRune(r)
+			sung = false
 		}
 	}
 	flush()
-	if len(words) == 0 {
+	if len(tokens) == 0 {
 		return nil
 	}
-	total := 0
-	for _, w := range words {
-		total += utf8.RuneCountInString(strings.TrimSpace(w))
+	span := end - start
+	if span < 100*time.Millisecond {
+		span = 100 * time.Millisecond
+	}
+	if total == 0 {
+		total = 1
 	}
 	// Singing takes most of the line, not the pause before the next.
-	span := time.Duration(float64(end-start) * 0.85)
-	out := make([]Word, len(words))
+	per := time.Duration(float64(span) * 0.9 / total)
+	out := make([]Word, len(tokens))
 	at := start
-	for i, w := range words {
-		d := span * time.Duration(utf8.RuneCountInString(strings.TrimSpace(w))) / time.Duration(max(total, 1))
-		out[i] = Word{Text: w, Start: at, End: at + d}
-		at += d
+	for i, t := range tokens {
+		d := time.Duration(float64(per) * t.weight)
+		out[i] = Word{Text: t.text, Start: at, End: at + max(d, 50*time.Millisecond)}
+		if t.weight > 0 {
+			at += d
+		} else {
+			at += 50 * time.Millisecond
+		}
+	}
+	// A line that runs past its end is squeezed back into it, rather than
+	// being sung into the next line's time.
+	if last := out[len(out)-1]; last.End > end && last.End > start {
+		scale := float64(end-start) / float64(last.End-start)
+		for i := range out {
+			out[i].Start = start + time.Duration(float64(out[i].Start-start)*scale)
+			out[i].End = start + time.Duration(float64(out[i].End-start)*scale)
+		}
 	}
 	return out
 }
