@@ -134,6 +134,10 @@ func (a *app) load(r route) {
 		a.loadAlbum(r.id)
 	case pageUser:
 		a.loadUser(r.id)
+	case pageRecord:
+		if a.records[r.id] == nil {
+			a.loadRecord(r.id)
+		}
 	case pagePodcast:
 		a.loadPodcast(r.id)
 	case pagePodcasts:
@@ -370,6 +374,8 @@ func (a *app) content(c *ui.Context) {
 		a.albumPage(c)
 	case pageUser:
 		a.userPage(c)
+	case pageRecord:
+		a.recordPage(c)
 	case pagePodcast:
 		a.podcastPage(c)
 	case pagePodcasts:

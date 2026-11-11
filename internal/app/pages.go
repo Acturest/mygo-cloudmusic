@@ -10,7 +10,7 @@ const pagesKept = 12
 // the app: the pages that show what the home page or the charts do don't.
 func keepsPage(r route) bool {
 	switch r.page {
-	case pagePlaylist, pageSearch, pageArtist, pageAlbum, pageUser, pagePodcast:
+	case pagePlaylist, pageSearch, pageArtist, pageAlbum, pageUser, pageRecord, pagePodcast:
 		return true
 	}
 	return false
@@ -55,6 +55,8 @@ func (a *app) dropPage(r route) {
 		delete(a.albums, r.id)
 	case pageUser:
 		delete(a.users, r.id)
+	case pageRecord:
+		delete(a.records, r.id)
 	case pagePodcast:
 		delete(a.podcasts, r.id)
 	case pageSearch:
@@ -78,6 +80,10 @@ func (a *app) pageLoading(r route) bool {
 	case pageUser:
 		if d := a.users[r.id]; d != nil {
 			return d.loading > 0 || d.subsLoading > 0
+		}
+	case pageRecord:
+		if d := a.records[r.id]; d != nil {
+			return d.loading > 0
 		}
 	case pagePodcast:
 		if d := a.podcasts[r.id]; d != nil {

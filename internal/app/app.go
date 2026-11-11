@@ -24,6 +24,7 @@ const (
 	pageArtist
 	pageAlbum
 	pageUser
+	pageRecord
 	pagePodcast
 	pagePodcasts
 )
@@ -92,6 +93,7 @@ type app struct {
 	artistTab  int // what an artist's page lists: artistHot, artistLatest, artistAlbums or artistEvents
 	albums     map[int64]*albumData
 	users      map[int64]*userData
+	records    map[int64]*recordData
 	podcasts   map[int64]*podcastData
 	podcastTab *podcastTab // the podcasts tab's lists
 	trackList  ui.ListState
@@ -205,6 +207,7 @@ func Run() error {
 		artists:    map[int64]*artistData{},
 		albums:     map[int64]*albumData{},
 		users:      map[int64]*userData{},
+		records:    map[int64]*recordData{},
 		podcasts:   map[int64]*podcastData{},
 		podcastTab: &podcastTab{},
 		searches:   map[route]*searchData{},

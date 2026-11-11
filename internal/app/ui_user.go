@@ -145,17 +145,28 @@ func (a *app) userPage(c *ui.Context) {
 			})
 		})
 		a.section(c, "创建的歌单")
+		// A listener's record comes before the playlists they made, and
+		// they have it even with no playlists at all.
 		switch {
-		case d.loading > 0:
+		case d.loading > 0 && !own:
 			a.playlistCardsSkeleton(c, a.pageShimmer(c), a.columns(c, 168), 168, false)
-		case len(d.playlists) == 0:
+		case len(d.playlists) == 0 && !own:
 			a.empty(c, "暂无公开歌单")
 		default:
 			ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
+				if own {
+					a.recordCard(c.Key("record"), id)
+				}
 				for i := range d.playlists {
 					a.playlistCard(c.Key(d.playlists[i].ID), &d.playlists[i])
 				}
 			})
+			if d.loading > 0 {
+				a.playlistCardsSkeleton(c, a.pageShimmer(c), a.columns(c, 168), 168, false)
+			}
+			if len(d.playlists) == 0 {
+				a.empty(c, "还没有创建歌单")
+			}
 		}
 		if own && d.podcastsShown {
 			a.section(c, "订阅的播客")
