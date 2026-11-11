@@ -253,6 +253,11 @@ func (a *app) settingsView(c *ui.Context) {
 					a.changed()
 				}
 			})
+			row("听歌打卡", "歌曲听完或听过一半后，把这次播放记进网易云音乐的听歌排行；需登录", func() {
+				if ui.Switch(c.Key("scrobble"), &s.Scrobble).Label("听歌打卡").Changed() {
+					a.changed()
+				}
+			})
 		})
 
 		group("账号", func() {

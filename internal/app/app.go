@@ -230,6 +230,7 @@ func Run() error {
 		a.pl.Changed = func() {
 			a.keepSession()
 		}
+		a.pl.Played = a.reportPlay
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.win = mygo.NewWindow(mygo.WindowOptions{

@@ -55,6 +55,10 @@ type settings struct {
 	// rising and swelling with the bass: an experiment the listener turns
 	// on.
 	Fog bool `json:"fog"`
+	// Scrobble reports each song the listener hears to NetEase, so that it
+	// counts in their record of what they play (听歌排行): an experiment the
+	// listener turns on.
+	Scrobble bool `json:"scrobble,omitempty"`
 	// AppIcon is where the app's icon shows on macOS (appIcons); elsewhere
 	// it is always in the notification area.
 	AppIcon string `json:"appIcon"`

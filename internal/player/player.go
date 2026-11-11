@@ -45,6 +45,10 @@ type Player struct {
 	// Changed, if set, hears that what plays, where it is or whether it
 	// plays changed.
 	Changed func()
+	// Played, if set, hears a track that reached its end, or that the
+	// listener left after hearing at least half of it: the track, and how
+	// far into it they got.
+	Played func(t netease.Track, played time.Duration)
 
 	queue   []netease.Track
 	order   []int // the queue's indices in play order: shuffled or not
@@ -82,6 +86,12 @@ type Player struct {
 	seeking bool
 	seekTo  time.Duration
 	seekGen int
+
+	// heard is the furthest into the current track the sound reached: a
+	// seek near the end is not a listen.
+	heard time.Duration
+	// reported says Played has heard of the current track already.
+	reported bool
 }
 
 func New(post func(func())) *Player {
@@ -143,7 +153,9 @@ func (p *Player) announce(t *netease.Track, artwork []byte) {
 }
 
 func (p *Player) ended() {
+	p.reportPlayed(true)
 	if p.repeat == RepeatOne {
+		p.heard, p.reported = 0, false
 		p.out.Seek(0)
 		p.out.Play()
 		return
@@ -550,7 +562,13 @@ func (p *Player) Position() time.Duration {
 	case p.seeking:
 		return p.seekTo
 	}
-	return p.out.Position()
+	pos := p.out.Position()
+	// The views ask every frame, often enough to know how far a track
+	// played, even when the listener seeks back.
+	if p.playing {
+		p.heard = max(p.heard, pos)
+	}
+	return pos
 }
 
 func (p *Player) Duration() time.Duration {
@@ -570,7 +588,28 @@ func (p *Player) Levels() ([Bands]float32, bool) {
 	return spec.at(frame)
 }
 
+// reportPlayed tells Played of what played, if the listener heard enough
+// of it: finished says the track reached its end, and otherwise at least
+// half of it must have played. It tells of a track once.
+func (p *Player) reportPlayed(finished bool) {
+	if p.Played == nil || p.track == nil || p.reported {
+		return
+	}
+	t := *p.track
+	d := t.Length()
+	heard := min(p.heard, max(d, 0))
+	if finished && d > 0 {
+		heard = d
+	}
+	if !finished && (d <= 0 || heard*2 < d) {
+		return
+	}
+	p.reported = true
+	p.Played(t, heard)
+}
+
 func (p *Player) stop() {
+	p.reportPlayed(false)
 	if out := p.out; out != nil {
 		// Paused first, it fades out over a few milliseconds, rather than
 		// stopping with a click.
@@ -604,6 +643,7 @@ func (p *Player) load(at int) {
 // skipping those that cannot play: skipped of them so far.
 func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	p.stop()
+	p.heard, p.reported = 0, false
 	p.gen++
 	gen := p.gen
 	p.at = at
