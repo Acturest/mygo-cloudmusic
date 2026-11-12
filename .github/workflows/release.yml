@@ -49,16 +49,22 @@ jobs:
       matrix:
         include:
           - { name: macOS, os: macos-latest, platform: "darwin/arm64,darwin/amd64" }
-          - { name: Windows, os: ubuntu-latest, platform: "windows/amd64,windows/arm64" }
+          - { name: Windows, os: windows-latest, platform: "windows/amd64,windows/arm64" }
           - { name: Linux, os: ubuntu-latest, platform: "linux/amd64,linux/arm64" }
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - name: Install NSIS, for the Windows installers
+      # mygo build downloads NSIS itself on a Windows runner, once per run of
+      # a fresh one; this keeps it in the Actions cache instead, its version
+      # pinned by the CLI in go.sum.
+      - name: Cache NSIS
         if: matrix.name == 'Windows'
-        run: sudo apt-get update && sudo apt-get install -y nsis
+        uses: actions/cache@v6
+        with:
+          path: ~\AppData\Local\mygo\nsis-*
+          key: nsis-${{ hashFiles('go.sum') }}
       # The certificate signs the app; the notary profile, "notary" in
       # mygo.json, notarizes its disk image. Both go in a keychain of the
       # job, made the default one, where codesign and notarytool look.
