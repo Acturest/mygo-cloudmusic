@@ -4,109 +4,122 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
 
-// The scrobble goes to the clientlog host, as the desktop client's play log
-// does. Posting the same logs to music.163.com is answered 200 and dropped
-// before it reaches the record, which is why this speaks to that host as the
-// macOS client: its address, user agent and app version are what the log is
-// checked against.
+// The play log goes to the clientlog host, as the clients that still count do.
+// Only the macOS client picture is credited there: the same log sent as the
+// Windows, Android or iPhone client is answered 200 and dropped before it
+// reaches "最近播放" or the listening record. So the log speaks as the macOS
+// client while the session and the device it belongs to stay this app's.
 const (
 	scrobbleDomain = "https://clientlog.music.163.com"
-	scrobbleAppVer = "3.1.10.5100"
+	scrobbleOS     = "osx"
 	scrobbleOSVer  = "15.5"
-	scrobbleUA     = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0"
+	scrobbleAppVer = "3.1.10.5100"
+	// scrobbleUA is the macOS client's user agent; this path reads it against
+	// the header, so the eapi's own is not used here.
+	scrobbleUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 
-// Scrobble tells NetEase that a track played, so that it counts in the
-// listener's record of what they play. source names where it played from, as
-// the scrobble API's play sources do: "list", "album", "artist", "recommend",
-// "search" or "download". sourceID is the playlist, album or artist it came
-// from, 0 for a source without one.
+// StartPlay tells NetEase that id started playing, from source, whose id is
+// sourceID. The report is two logs, as the client sends them: that playback
+// started, and later that it ended. NetEase answers 200 whether or not the
+// listen reaches the record, and the counts catch up later.
 //
-// The report is two logs, as the client sends them: that playback started,
-// then that it ended after so many seconds. NetEase answers 200 whether or not
-// the listen reaches the record, and the counts catch up later.
-func Scrobble(id, sourceID int64, source string, played time.Duration) error {
+// source names where it played from, as the play log's sources do: "list",
+// "album", "artist", "recommend", "search" or "download". sourceID is the
+// playlist, album or artist it came from, 0 for a source without one.
+func StartPlay(id, sourceID int64, source string) error {
 	if id == 0 {
-		return fmt.Errorf("netease: scrobble without a song")
+		return fmt.Errorf("netease: startplay without a song")
 	}
-	if source == "" {
-		source = "list"
+	return scrobbleLog(scrobbleEntry("startplay", id, sourceID, source, 0))
+}
+
+// PlayEnd tells NetEase that id played for played, from source, whose id is
+// sourceID: the log the record counts, once the song ended or the listener
+// left it.
+func PlayEnd(id, sourceID int64, source string, played time.Duration) error {
+	if id == 0 {
+		return fmt.Errorf("netease: play without a song")
 	}
-	// The report keeps whole seconds, as the players it copies do.
+	// The log keeps whole seconds, as the players it copies do, and never
+	// longer than the song: a report of a song longer than it played reads
+	// as one nobody made.
 	secs := int64(played / time.Second)
 	if secs < 0 {
 		secs = 0
 	}
-	// The log says which list, album or artist it came from as a page the
-	// player was on: "id=" and the source's id, 0 when it had none.
+	return scrobbleLog(scrobbleEntry("play", id, sourceID, source, secs))
+}
+
+// scrobbleEntry is one log entry: that playback started, or that it played
+// for secs. The log says which list, album or artist the song came from as
+// the page the player was on: "id=" and the source's id, 0 when it had none.
+func scrobbleEntry(action string, id, sourceID int64, source string, secs int64) map[string]any {
+	if source == "" {
+		source = "list"
+	}
 	content := fmt.Sprintf("id=%d", sourceID)
-	start := map[string]any{
-		"action": "startplay",
-		"json": map[string]any{
-			"id":          id,
-			"type":        "song",
-			"mainsite":    "1",
-			"mainsiteWeb": "1",
-			"content":     content,
-		},
+	entry := map[string]any{
+		"id":          id,
+		"type":        "song",
+		"mainsite":    "1",
+		"mainsiteWeb": "1",
+		"content":     content,
 	}
-	play := map[string]any{
-		"action": "play",
-		"json": map[string]any{
-			"download":    0,
-			"end":         "playend",
-			"id":          id,
-			"sourceId":    sourceID,
-			"time":        secs,
-			"type":        "song",
-			"wifi":        0,
-			"source":      source,
-			"mainsite":    "1",
-			"mainsiteWeb": "1",
-			"content":     content,
-		},
+	if action == "play" {
+		entry["download"] = 0
+		entry["end"] = "playend"
+		entry["sourceId"] = sourceID
+		entry["time"] = secs
+		entry["wifi"] = 0
+		entry["source"] = source
 	}
-	if err := scrobbleLog(start); err != nil {
-		return err
+	return map[string]any{"action": action, "json": entry}
+}
+
+// scrobbleHeader is the header the macOS client's logs carry: which client
+// and device sent them, and the session's cookie. It goes in the encrypted
+// envelope and, field by field, in the request's Cookie header.
+func scrobbleHeader() map[string]string {
+	header := map[string]string{
+		"osver":       scrobbleOSVer,
+		"deviceId":    device(),
+		"os":          scrobbleOS,
+		"appver":      scrobbleAppVer,
+		"versioncode": "140",
+		"mobilename":  "",
+		"buildver":    fmt.Sprint(time.Now().Unix()),
+		"resolution":  "1920x1080",
+		"channel":     "netease",
+		"requestId":   fmt.Sprintf("%d_%04d", time.Now().UnixMilli(), rand.Intn(10000)),
+		"__csrf":      "",
 	}
-	return scrobbleLog(play)
+	for _, c := range httpClient.Jar.Cookies(siteURL) {
+		switch c.Name {
+		case "MUSIC_U", "MUSIC_A", "__csrf":
+			header[c.Name] = c.Value
+		}
+	}
+	return header
 }
 
 // scrobbleLog sends one log entry to the clientlog host through the eapi,
-// with the headers of the macOS client that host expects.
+// with the header of the macOS client the log speaks as. Its time is the time
+// it is sent: the client logs playback as it goes, not in hindsight.
 func scrobbleLog(entry map[string]any) error {
 	logs, err := json.Marshal([]map[string]any{entry})
 	if err != nil {
 		return err
 	}
 	data := map[string]any{"logs": string(logs)}
-	header := map[string]string{
-		"os":          "osx",
-		"appver":      scrobbleAppVer,
-		"osver":       scrobbleOSVer,
-		"channel":     "netease",
-		"deviceId":    device(),
-		"versioncode": "140",
-		"mobilename":  "",
-		"buildver":    fmt.Sprint(time.Now().Unix()),
-		"resolution":  "1920x1080",
-		"requestId":   fmt.Sprintf("%d_%04d", time.Now().UnixMilli(), time.Now().Nanosecond()%1000),
-		"__csrf":      "",
-	}
-	for _, c := range httpClient.Jar.Cookies(siteURL) {
-		switch c.Name {
-		case "MUSIC_U", "NMTID":
-			header[c.Name] = c.Value
-		case "__csrf":
-			header["__csrf"] = c.Value
-		}
-	}
+	header := scrobbleHeader()
 	data["header"] = header
 	data["e_r"] = false
 	params, err := eapiEncrypt("/api/feedback/weblog", data)

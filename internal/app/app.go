@@ -72,6 +72,7 @@ type app struct {
 	liked        map[int64]bool // the songs the listener likes
 	toast        string         // a message to show once
 	picked       pickedUp       // the song a login picked up, waiting to play
+	scrobbles    *scrobbleLog   // the play logs queued or on their way
 
 	// The episodes the listener likes, and doesn't, as far as NetEase has
 	// answered, and those asked about: see ui_like.go.
@@ -231,6 +232,7 @@ func Run() error {
 			a.keepSession()
 		}
 		a.pl.Played = a.reportPlay
+		a.pl.Started = a.reportStart
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.win = mygo.NewWindow(mygo.WindowOptions{

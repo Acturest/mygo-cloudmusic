@@ -323,13 +323,13 @@ func (a *app) playlistHeader(c *ui.Context, pl *netease.Playlist) {
 					if a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+					a.play(pl.Tracks, firstPlayable(pl.Tracks), "list", pl.ID)
 				}
 				if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
 					if !a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+					a.play(pl.Tracks, firstPlayable(pl.Tracks), "list", pl.ID)
 				}
 				if a.savable(pl) {
 					icon, label := iconPlus, "收藏"
@@ -493,7 +493,8 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 		})
 		if row.Clicked() && tr.Playable() {
-			a.pl.PlayQueue(tracks, i)
+			source, id := a.routeSource()
+			a.play(tracks, i, source, id)
 		}
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 }

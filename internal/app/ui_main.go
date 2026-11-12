@@ -450,7 +450,7 @@ func dailyRenewed(loaded, now time.Time) bool {
 func (a *app) loadPlaylist(id int64, thenPlay bool) {
 	if pl := a.playlists[id]; pl != nil {
 		if thenPlay {
-			a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+			a.play(pl.Tracks, firstPlayable(pl.Tracks), "list", id)
 		}
 		return
 	}
@@ -469,7 +469,7 @@ func (a *app) loadPlaylist(id int64, thenPlay bool) {
 			}
 			a.playlists[id] = pl
 			if thenPlay {
-				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+				a.play(pl.Tracks, firstPlayable(pl.Tracks), "list", id)
 			}
 		})
 	}()

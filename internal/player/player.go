@@ -49,6 +49,9 @@ type Player struct {
 	// listener left after hearing at least half of it: the track, and how
 	// far into it they got.
 	Played func(t netease.Track, played time.Duration)
+	// Started, if set, hears a track when its sound starts: the client logs
+	// playback as it starts, not when it ends.
+	Started func(t netease.Track)
 
 	queue   []netease.Track
 	order   []int // the queue's indices in play order: shuffled or not
@@ -92,10 +95,18 @@ type Player struct {
 	heard time.Duration
 	// reported says Played has heard of the current track already.
 	reported bool
+	// began says Started has heard of the current track already: a track
+	// paused and played again started once.
+	began bool
+	// source and sourceID say where the queue playing was started from, as
+	// the play log names it: the page it was picked on, and its playlist,
+	// album or artist.
+	source   string
+	sourceID int64
 }
 
 func New(post func(func())) *Player {
-	p := &Player{post: post, at: -1, volume: 0.8, gain: 1}
+	p := &Player{post: post, at: -1, volume: 0.8, gain: 1, source: "list"}
 	// Music, mixed far enough ahead to play on while macOS keeps the app
 	// waiting, as it does while its appearance changes.
 	audio.SetLatency(audio.LatencyPlayback)
@@ -155,9 +166,10 @@ func (p *Player) announce(t *netease.Track, artwork []byte) {
 func (p *Player) ended() {
 	p.reportPlayed(true)
 	if p.repeat == RepeatOne {
-		p.heard, p.reported = 0, false
+		p.heard, p.reported, p.began = 0, false, false
 		p.out.Seek(0)
 		p.out.Play()
+		p.beginPlay()
 		return
 	}
 	if p.at+1 >= len(p.order) && p.feed != nil {
@@ -174,9 +186,17 @@ func (p *Player) ended() {
 
 // PlayQueue replaces the queue with tracks and plays the one at start.
 func (p *Player) PlayQueue(tracks []netease.Track, start int) {
+	p.PlayQueueFrom(tracks, start, "list", 0)
+}
+
+// PlayQueueFrom replaces the queue with tracks and plays the one at start,
+// as played from source, whose id is sourceID: the page it was picked on, so
+// that the play log says where it came from.
+func (p *Player) PlayQueueFrom(tracks []netease.Track, start int, source string, sourceID int64) {
 	if len(tracks) == 0 {
 		return
 	}
+	p.source, p.sourceID = source, sourceID
 	p.endRadio()
 	start = min(max(start, 0), len(tracks)-1)
 	p.queue = append([]netease.Track(nil), tracks...)
@@ -201,7 +221,7 @@ func (p *Player) PlayRadio(name string, tracks []netease.Track, feed func(got fu
 	}
 	shuffle := p.shuffle
 	p.shuffle = false
-	p.PlayQueue(tracks, 0)
+	p.PlayQueueFrom(tracks, 0, "recommend", 0)
 	p.shuffle = shuffle
 	p.AttachRadio(name, feed)
 }
@@ -214,6 +234,7 @@ func (p *Player) RadioFrom(name string, tracks []netease.Track, feed func(got fu
 		return
 	}
 	p.queue, p.order, p.at = []netease.Track{*p.track}, []int{0}, 0
+	p.source, p.sourceID = "recommend", 0
 	p.appendTracks(tracks)
 	p.AttachRadio(name, feed)
 }
@@ -341,6 +362,10 @@ func (p *Player) SetRepeat(m RepeatMode) { p.repeat = m }
 
 // Current returns the track playing or loading, or nil.
 func (p *Player) Current() *netease.Track { return p.track }
+
+// Origin reports where the queue playing was started from, as the play log
+// names sources, and its id: 0 for a source without one.
+func (p *Player) Origin() (string, int64) { return p.source, p.sourceID }
 
 // Queue returns the tracks queued, in the order they were given.
 func (p *Player) Queue() []netease.Track { return p.queue }
@@ -479,6 +504,7 @@ func (p *Player) TogglePlay() {
 		out.Play()
 	}
 	p.fade.fade(1, fadeIn, nil)
+	p.beginPlay()
 	p.sync()
 }
 
@@ -591,6 +617,15 @@ func (p *Player) Levels() ([Bands]float32, bool) {
 // reportPlayed tells Played of what played, if the listener heard enough
 // of it: finished says the track reached its end, and otherwise at least
 // half of it must have played. It tells of a track once.
+// beginPlay tells Started that the current track started to sound, once.
+func (p *Player) beginPlay() {
+	if p.Started == nil || p.track == nil || p.began {
+		return
+	}
+	p.began = true
+	p.Started(*p.track)
+}
+
 func (p *Player) reportPlayed(finished bool) {
 	if p.Played == nil || p.track == nil || p.reported {
 		return
@@ -643,7 +678,7 @@ func (p *Player) load(at int) {
 // skipping those that cannot play: skipped of them so far.
 func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 	p.stop()
-	p.heard, p.reported = 0, false
+	p.heard, p.reported, p.began = 0, false, false
 	p.gen++
 	gen := p.gen
 	p.at = at
@@ -771,6 +806,7 @@ func (p *Player) loadStream(t netease.Track, gen, at, skipped int, level string,
 			if p.playing {
 				p.out.Play()
 				p.fade.fade(1, fadeIn, nil)
+				p.beginPlay()
 			}
 			p.sync()
 		})

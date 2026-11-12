@@ -80,10 +80,10 @@ func device() string {
 	return deviceID
 }
 
-// eapiPost calls path (as "/api/login/qrcode/unikey") through the eapi with
-// data, and decodes the JSON it answers into out. The cookies it sets, the
-// session's among them, go in the jar.
-func eapiPost(path string, data map[string]any, out any) error {
+// eapiHeader is the header the client's requests carry: which client and
+// device sent them, and the session's cookies. The login uses it; the play
+// log says it is another client (see scrobbleHeader).
+func eapiHeader() map[string]string {
 	header := map[string]string{
 		"osver":       eapiClient["osver"],
 		"deviceId":    device(),
@@ -105,6 +105,14 @@ func eapiPost(path string, data map[string]any, out any) error {
 			header["__csrf"] = c.Value
 		}
 	}
+	return header
+}
+
+// eapiPost calls path (as "/api/login/qrcode/unikey") through the eapi with
+// data, and decodes the JSON it answers into out. The cookies it sets, the
+// session's among them, go in the jar.
+func eapiPost(path string, data map[string]any, out any) error {
+	header := eapiHeader()
 	data["header"] = header
 	data["e_r"] = false
 	params, err := eapiEncrypt(path, data)

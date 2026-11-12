@@ -175,13 +175,13 @@ func (a *app) recordHeader(c *ui.Context, d *recordData) {
 					if a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.pl.PlayQueue(tracks, firstPlayable(tracks))
+					a.play(tracks, firstPlayable(tracks), "list", 0)
 				}
 				if pillButton(c.Key("shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
 					if !a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
-					a.pl.PlayQueue(tracks, firstPlayable(tracks))
+					a.play(tracks, firstPlayable(tracks), "list", 0)
 				}
 			})
 		})
@@ -297,7 +297,7 @@ func (a *app) recordRows(c *ui.Context, recs []netease.PlayRecord, header func(c
 			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 		})
 		if row.Clicked() && tr.Playable() {
-			a.pl.PlayQueue(tracks, i)
+			a.play(tracks, i, "list", 0)
 		}
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 }

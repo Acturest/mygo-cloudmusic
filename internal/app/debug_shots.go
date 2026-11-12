@@ -60,7 +60,7 @@ func init() {
 					}
 					time.Sleep(250 * time.Millisecond)
 				}
-				step(0, func() { a.volume = 0; a.pl.SetVolume(0); a.pl.PlayQueue(a.daily, 0) })
+				step(0, func() { a.volume = 0; a.pl.SetVolume(0); a.play(a.daily, 0, "recommend", 0) })
 				time.Sleep(4 * time.Second)
 				if os.Getenv("NM_DAILY") != "" {
 					// The home page, its daily card's record turning, for a
@@ -152,7 +152,7 @@ func init() {
 				step(0, func() { a.open(route{page: pageDaily}) })
 				time.Sleep(2 * time.Second)
 				shot("q-daily", a.win)
-				step(0, func() { a.pl.PlayQueue(a.daily, 0); a.volume = 0.15; a.pl.SetVolume(0.15) })
+				step(0, func() { a.play(a.daily, 0, "recommend", 0); a.volume = 0.15; a.pl.SetVolume(0.15) })
 				time.Sleep(4 * time.Second)
 				step(0, func() { a.nowPlaying = true })
 				time.Sleep(4 * time.Second)
@@ -187,7 +187,7 @@ func init() {
 				// Now Playing, then the page of the artist it credits first,
 				// as their name opens it, its songs the most popular and the newest.
 				time.Sleep(5 * time.Second)
-				step(0, func() { a.volume = 0; a.pl.SetVolume(0); a.pl.PlayQueue(a.daily, 0) })
+				step(0, func() { a.volume = 0; a.pl.SetVolume(0); a.play(a.daily, 0, "recommend", 0) })
 				time.Sleep(3 * time.Second)
 				step(0, func() { a.nowPlaying, a.npPane = true, paneLyrics })
 				time.Sleep(3 * time.Second)
@@ -233,7 +233,7 @@ func init() {
 				pl := a.playlists[a.charts[1].ID]
 				a.volume = 0.15
 				a.pl.SetVolume(a.volume)
-				a.pl.PlayQueue(pl.Tracks, firstPlayable(pl.Tracks))
+				a.play(pl.Tracks, firstPlayable(pl.Tracks), "list", pl.ID)
 			})
 			time.Sleep(5 * time.Second)
 			shot("4-playing", a.win)
