@@ -171,7 +171,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 						a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(15).SingleLine()
 					})
 					a.likeButton(c.Key("like"), tr, 22, white.Alpha(0.7))
-					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7)).Margin(0, -8, 0, 0)
+					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7), a.lyricsItem).Margin(0, -8, 0, 0)
 				})
 				a.scrubber(c.Key("np-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 16, accent.Mix(white, 0.35))
 				// As tall with the quality's badge as without it: the badge goes
@@ -515,6 +515,14 @@ func (a *app) timedLines(c *ui.Context, scroll ui.Element, lines []lyrics.Line, 
 							ui.Text(c, l.Translation).FontSize(17).FontWeight(600).TextColor(white.Alpha(0.7))
 						}
 					})
+				})
+				line.ContextMenu(func(m *ui.Menu) {
+					if m.Item("复制这句歌词").Chosen() {
+						copyText(l.Text)
+					}
+					if m.Item("复制原文和翻译").Chosen() {
+						copyText(lyricLineText(l))
+					}
 				})
 				if line.Clicked() {
 					pl.Seek(l.At)

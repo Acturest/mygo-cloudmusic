@@ -7,6 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
 )
 
@@ -36,6 +37,74 @@ func TestSongMenuCopies(t *testing.T) {
 		}
 		if err := tt.ChooseMenuItem(c.item); err != nil {
 			t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+		}
+		tt.Frame()
+		if copied != c.want {
+			t.Errorf("%s copied %q, want %q", c.item, copied, c.want)
+		}
+	}
+}
+
+// On the lyrics pane, the dots also copy the lyrics of what plays.
+func TestLyricsMenuCopies(t *testing.T) {
+	var copied string
+	real := copyText
+	copyText = func(s string) error { copied = s; return nil }
+	defer func() { copyText = real }()
+
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.pl.Cue([]netease.Track{{ID: 1, Name: "咲き誇れ", Duration: 200000}})
+	a.pl.SetLyrics([]lyrics.Line{
+		{At: 0, Text: "今すぐに", Translation: "现在立刻"},
+		{At: time.Second, Text: "思うままに", Translation: "遵从内心的声音"},
+	})
+	a.nowPlaying = true
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+
+	if err := tt.Click("更多"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("复制当前歌词"); err != nil {
+		t.Fatalf("%v; the menu shows %q", err, tt.Menu())
+	}
+	tt.Frame()
+	if want := "今すぐに\n现在立刻\n思うままに\n遵从内心的声音"; copied != want {
+		t.Errorf("copied %q, want %q", copied, want)
+	}
+}
+
+// A right click on a line copies its words, or them with the translation.
+func TestLyricLineRightClickCopies(t *testing.T) {
+	var copied string
+	real := copyText
+	copyText = func(s string) error { copied = s; return nil }
+	defer func() { copyText = real }()
+
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.pl.Cue([]netease.Track{{ID: 1, Name: "咲き誇れ", Duration: 200000}})
+	a.pl.SetLyrics([]lyrics.Line{
+		{At: 0, Text: "今すぐに", Translation: "现在立刻"},
+		{At: time.Second, Text: "思うままに", Translation: "遵从内心的声音"},
+	})
+	a.nowPlaying = true
+	tt := ui.NewTester(a.view, 1200, 800)
+	tt.Frame()
+
+	for _, c := range []struct{ item, want string }{
+		{"复制这句歌词", "思うままに"},
+		{"复制原文和翻译", "思うままに\n遵从内心的声音"},
+	} {
+		if err := tt.RightClick("思うままに"); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := tt.Menu(), []string{"复制这句歌词", "复制原文和翻译"}; !slices.Equal(got, want) {
+			t.Fatalf("the menu shows %q, want %q", got, want)
+		}
+		if err := tt.ChooseMenuItem(c.item); err != nil {
+			t.Fatal(err)
 		}
 		tt.Frame()
 		if copied != c.want {
