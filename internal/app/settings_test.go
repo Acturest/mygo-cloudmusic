@@ -1,14 +1,44 @@
 package app
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo"
 
 	"netease-music-mygo/internal/player"
 )
+
+// The experimental multi-instance switch is off unless the listener turns
+// it on, and is kept with the other settings when they do.
+func TestMultiInstanceSetting(t *testing.T) {
+	if defaultSettings().MultiInstance {
+		t.Fatal("multi-instance ran more than one by default")
+	}
+	s := defaultSettings()
+	s.MultiInstance = true
+	s.path = filepath.Join(t.TempDir(), "settings.json")
+	if err := s.save(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(s.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "\"multiInstance\": true") {
+		t.Errorf("saved %s", b)
+	}
+	var got settings
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.MultiInstance {
+		t.Error("read the switch back off")
+	}
+}
 
 // The data kept under the app's old name moves to the directory of its
 // name, which Path made empty, but not over data kept there already.

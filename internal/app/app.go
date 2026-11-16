@@ -44,6 +44,10 @@ type app struct {
 	win   *mygo.Window
 	notch *notch
 	tray  *mygo.Tray // the icon in the menu bar or notification area, while it shows
+	// instance listens for a later launch of the app, which asks this one
+	// to show its window rather than opening another player: nil while
+	// the app allows more than one.
+	instance *instanceServer
 	// lite is light mode: the window away, only the icon showing.
 	lite bool
 	// liteRepeat is the repeat mode light mode found, to go back to when
@@ -217,6 +221,19 @@ func Run() error {
 		cacheUsed:  -1,
 	}
 	moveOldData()
+	a.settings = loadSettings()
+	if !a.settings.MultiInstance {
+		// One instance: a later launch asks this one to show its window
+		// and exits, rather than opening another player over it. The
+		// window comes back from behind a closed one or light mode alike.
+		srv, running := serveInstances(mygo.App.Name(), func() {
+			mygo.RunOnMain(func() { a.showWindow() })
+		})
+		if running {
+			return nil
+		}
+		a.instance = srv
+	}
 	mygo.App.WhenReady(func() {
 		a.settings = loadSettings()
 		a.settings.applyAppearance()
@@ -301,6 +318,9 @@ func Run() error {
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
 		if a.tray != nil {
 			a.tray.Destroy()
+		}
+		if a.instance != nil {
+			a.instance.ln.Close()
 		}
 	})
 	mygo.App.OnWindowAllClosed(func() {})

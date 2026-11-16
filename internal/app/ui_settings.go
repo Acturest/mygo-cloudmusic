@@ -258,6 +258,11 @@ func (a *app) settingsView(c *ui.Context) {
 					a.changed()
 				}
 			})
+			row("允许多开应用", "同时运行多个窗口与播放器；关闭时，再次启动只会唤起已运行的窗口。下次启动生效", func() {
+				if ui.Switch(c.Key("multi-instance"), &s.MultiInstance).Label("允许多开应用").Changed() {
+					a.changed()
+				}
+			})
 		})
 
 		group("账号", func() {

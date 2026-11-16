@@ -59,6 +59,11 @@ type settings struct {
 	// counts in their record of what they play (听歌排行): an experiment the
 	// listener turns on.
 	Scrobble bool `json:"scrobble,omitempty"`
+	// MultiInstance lets another copy of the app run, with its own window
+	// and player, rather than bringing the running one forward: an
+	// experiment the listener turns on. Off, a second launch shows the
+	// window of the first.
+	MultiInstance bool `json:"multiInstance,omitempty"`
 	// AppIcon is where the app's icon shows on macOS (appIcons); elsewhere
 	// it is always in the notification area.
 	AppIcon string `json:"appIcon"`
