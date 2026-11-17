@@ -378,10 +378,16 @@ func (a *app) playerBar(c *ui.Context) {
 			hovered := info.Hovered()
 			info.Children(func() {
 				ui.Box(c).Size(48, 48).Shrink(0).Children(func() {
-					a.cover(c, tr.Album.PicURL, 120, 48, 8).Shadow(0, 2, 8, 0, p.cardShade)
+					a.playerCover(c, tr.Album.PicURL, 120, 48, 8)
 					if hovered {
-						ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).Center().
-							Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255)).Children(func() {
+						overlay := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().
+							Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255))
+						if a.settings.Cover == "vinyl" {
+							overlay.Radius(999)
+						} else {
+							overlay.Radius(8)
+						}
+						overlay.Children(func() {
 							ui.Icon(c, iconDown).Size(18, 18).Rotate(180)
 						})
 					}

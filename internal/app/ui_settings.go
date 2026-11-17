@@ -46,6 +46,7 @@ func (a *app) changed() {
 		a.notch.setEnabled(a.settings.Notch)
 	}
 	a.applyEffects()
+	a.applyVinylMix()
 	if a.effectsWin != nil {
 		a.effectsWin.Invalidate()
 	}
@@ -230,6 +231,20 @@ func (a *app) settingsView(c *ui.Context) {
 					a.changed()
 				}
 			})
+			row("封面", "封面以黑胶唱片的形式出现：播放时转动，唱针随播放与暂停落下与抬起", func() {
+				labels := []string{"默认", "黑胶唱片"}
+				chosen := labels[0]
+				if s.Cover == "vinyl" {
+					chosen = labels[1]
+				}
+				if ui.Select(c.Key("cover-style"), &chosen, labels).Label("封面").Width(190).Changed() {
+					if chosen == labels[1] {
+						a.setCover("vinyl")
+					} else {
+						a.setCover("")
+					}
+				}
+			})
 			row("字体", "歌词与界面的字体；内置的 獅尾四季春加糖 是一款衬线字体", func() {
 				labels := []string{"系统默认", "獅尾四季春加糖 SC"}
 				chosen := labels[0]
@@ -264,6 +279,11 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 			row("允许多开应用", "同时运行多个窗口与播放器；关闭时，再次启动只会唤起已运行的窗口。下次启动生效", func() {
 				if ui.Switch(c.Key("multi-instance"), &s.MultiInstance).Label("允许多开应用").Changed() {
+					a.changed()
+				}
+			})
+			row("配比", "黑胶底噪：嘶声、转盘隆隆、爆裂、交流声与爆裂概率；封面切换到黑胶唱片时默认开启，可在此关掉", func() {
+				if ui.Switch(c.Key("vinyl-on"), &s.VinylOn).Label("配比").Changed() {
 					a.changed()
 				}
 			})

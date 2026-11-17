@@ -156,6 +156,19 @@ func (a *app) cover(c *ui.Context, url string, px int, size, radius float32) ui.
 	return box
 }
 
+// playerCover is the cover of what plays: a record when the cover style
+// asks for one, and the plain artwork otherwise.
+func (a *app) playerCover(c *ui.Context, url string, px int, size, radius float32) ui.Element {
+	if a.settings.Cover != "vinyl" {
+		return a.cover(c, url, px, size, radius).Shadow(0, 2, 6, 0, a.pal.cardShade)
+	}
+	angle, arm := a.vinylStep(c, a.pl.Playing())
+	box := ui.Box(c).Size(size, size).Shadow(0, 2, 6, 0, a.pal.cardShade)
+	bmp := bitmap(a.art.get(netease.Sized(url, px), false))
+	box.Children(func() { a.vinylRecord(c, bmp, angle, arm, a.vinylProgress()) })
+	return box
+}
+
 // bitmap returns the cover of art, nil while it loads.
 func bitmap(art *artwork) *ui.Bitmap {
 	if art == nil {

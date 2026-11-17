@@ -90,3 +90,30 @@ func TestEffectSettingsPersist(t *testing.T) {
 		t.Errorf("read back %+v", got.Effects)
 	}
 }
+
+// The cover style and the record's noise mix are kept with the other
+// settings.
+func TestVinylSettingsPersist(t *testing.T) {
+	s := defaultSettings()
+	s.Cover = "vinyl"
+	s.VinylHiss = 0.4
+	s.VinylRumble = 0.6
+	s.VinylCrackle = 0.8
+	s.VinylHum = 0.2
+	s.VinylCrackleProb = 0.3
+	s.path = t.TempDir() + "/settings.json"
+	if err := s.save(); err != nil {
+		t.Fatal(err)
+	}
+	var got settings
+	b, err := os.ReadFile(s.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Cover != "vinyl" || got.VinylHiss != 0.4 || got.VinylRumble != 0.6 || got.VinylCrackle != 0.8 || got.VinylHum != 0.2 || got.VinylCrackleProb != 0.3 {
+		t.Errorf("read back cover %q mix %+v", got.Cover, got)
+	}
+}

@@ -74,6 +74,9 @@ type Player struct {
 	// effects are the chain's settings, read by the goroutine decoding the
 	// song and set from the main thread as the listener changes them.
 	effects atomic.Pointer[Effects]
+	// vinyl is the mix of surface noise under the music, as the 配比
+	// panel keeps it.
+	vinyl   atomic.Pointer[VinylMix]
 	stream  stream
 	info    *netease.Stream // what the current track streams
 	fade    fader
@@ -137,6 +140,12 @@ func New(post func(func())) *Player {
 // main thread; the decoder picks them up at its next block.
 func (p *Player) SetEffects(e Effects) {
 	p.effects.Store(&e)
+}
+
+// SetVinylMix gives the sound the mix of a record's surface noise under
+// it: each layer a ratio of the vinyl-groove project's factory balance.
+func (p *Player) SetVinylMix(mix VinylMix) {
+	p.vinyl.Store(&mix)
 }
 
 // sync shows the system, and Changed, where playback is.
@@ -796,7 +805,7 @@ func (p *Player) loadStream(t netease.Track, gen, at, skipped int, level string,
 			p.gain = normGain(info)
 			p.out = audio.NewPlayer(&effectDecoder{
 				Decoder: s,
-				proc:    newEffectProcessor(s.SampleRate(), s.Channels(), &p.effects),
+				proc:    newEffectProcessor(s.SampleRate(), s.Channels(), &p.effects, &p.vinyl),
 			})
 			// From its middle, as a session picked up again, it fades in.
 			level := 1.0

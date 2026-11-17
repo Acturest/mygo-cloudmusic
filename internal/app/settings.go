@@ -64,6 +64,21 @@ type settings struct {
 	// experiment the listener turns on. Off, a second launch shows the
 	// window of the first.
 	MultiInstance bool `json:"multiInstance,omitempty"`
+	// Cover is how covers show: empty for the plain artwork, or "vinyl"
+	// for a record with a tonearm.
+	Cover string `json:"cover,omitempty"`
+	// VinylHiss, VinylRumble, VinylCrackle and VinylHum are the ratios of
+	// the record's surface noise layers, 1 the factory balance; and
+	// VinylCrackleProb how often the crackle's grains fall, 1 factory.
+	VinylHiss        float64 `json:"vinylHiss,omitempty"`
+	VinylRumble      float64 `json:"vinylRumble,omitempty"`
+	VinylCrackle     float64 `json:"vinylCrackle,omitempty"`
+	VinylHum         float64 `json:"vinylHum,omitempty"`
+	VinylCrackleProb float64 `json:"vinylCrackleProb"`
+	// VinylOn mixes the record's surface noise under the music: off by
+	// default, turned on as the cover takes the record's form, and off
+	// again by the listener any time.
+	VinylOn bool `json:"vinylOn,omitempty"`
 	// EffectsEnabled runs the audio effect chain: an experiment the
 	// listener turns on.
 	EffectsEnabled bool `json:"effectsEnabled,omitempty"`
@@ -101,7 +116,8 @@ const (
 )
 
 func defaultSettings() settings {
-	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Effects: neutralEffectSettings()}
+	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Effects: neutralEffectSettings(),
+		VinylHiss: 0.10, VinylRumble: 0.35, VinylCrackle: 1, VinylHum: 1, VinylCrackleProb: 0.15}
 }
 
 func settingsPath() (string, error) {
@@ -158,6 +174,11 @@ func loadSettings() settings {
 		}
 		s.path = path
 	}
+	s.VinylHiss = clampFloat(s.VinylHiss, 0, 1.5)
+	s.VinylRumble = clampFloat(s.VinylRumble, 0, 1.5)
+	s.VinylCrackle = clampFloat(s.VinylCrackle, 0, 1.5)
+	s.VinylHum = clampFloat(s.VinylHum, 0, 1.5)
+	s.VinylCrackleProb = clampFloat(s.VinylCrackleProb, 0, 1)
 	s.Effects = s.Effects.normalized()
 	for i := range s.EffectSlots {
 		if s.EffectSlots[i] != (effectSettings{}) {

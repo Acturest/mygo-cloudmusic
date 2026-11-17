@@ -241,7 +241,7 @@ func (a *app) sidebarNowPlaying(c *ui.Context, tr *netease.Track) {
 	}
 	card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
 	card.Children(func() {
-		a.cover(c, tr.Album.PicURL, 96, 40, 6).Shadow(0, 2, 6, 0, p.cardShade)
+		a.playerCover(c, tr.Album.PicURL, 96, 40, 6)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(2).Children(func() {
 			ui.Text(c, tr.Name).FontSize(12.5).FontWeight(600).SingleLine()
 			a.artistLinks(c, tr, p.muted, p.text).FontSize(11.5).SingleLine()

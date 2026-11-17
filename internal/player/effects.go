@@ -62,6 +62,8 @@ type effectProcessor struct {
 	rate     int
 	channels int
 	params   *atomic.Pointer[Effects]
+	vinyl    *atomic.Pointer[VinylMix]
+	record   *vinylNoise
 	last     *Effects
 
 	eq  [10]biquad // [band], per channel below
@@ -89,13 +91,18 @@ type effectProcessor struct {
 	rev *reverb
 }
 
-func newEffectProcessor(rate, channels int, params *atomic.Pointer[Effects]) *effectProcessor {
-	return &effectProcessor{
+func newEffectProcessor(rate, channels int, params *atomic.Pointer[Effects], vinyl ...*atomic.Pointer[VinylMix]) *effectProcessor {
+	p := &effectProcessor{
 		rate:     rate,
 		channels: channels,
 		params:   params,
 		wow:      [2][]float64{make([]float64, rate/5+2), make([]float64, rate/5+2)},
 	}
+	if len(vinyl) > 0 {
+		p.vinyl = vinyl[0]
+	}
+	p.record = newVinylNoise(rate)
+	return p
 }
 
 // reset forgets the filters' and delays' sound, as a seek makes.
@@ -116,73 +123,91 @@ func (p *effectProcessor) reset() {
 	if p.rev != nil {
 		p.rev.reset()
 	}
+	p.record.reset()
 }
 
 // process applies the chain to interleaved stereo samples, in place.
 func (p *effectProcessor) process(buf []float32) {
 	e := p.params.Load()
-	if e == nil || !e.Enabled {
+	var mix VinylMix
+	if p.vinyl != nil {
+		if v := p.vinyl.Load(); v != nil {
+			mix = *v
+		}
+	}
+	on := e != nil && e.Enabled
+	if !on && !mix.Active() {
 		p.last = nil
 		return
 	}
-	if p.last != e {
+	if on && p.last != e {
 		p.configure(e)
 		p.last = e
 	}
-	neutralFilters := e.Highpass <= 20.001 && e.Lowpass >= 19999
+	if !on {
+		p.last = nil
+	}
+	neutralFilters := on && e.Highpass <= 20.001 && e.Lowpass >= 19999
 	for i := 0; i+1 < len(buf); i += 2 {
 		l, r := float64(buf[i]), float64(buf[i+1])
+		if on {
 
-		// Ten bands: the first a low shelf, the last a high shelf.
-		for b := range p.eq {
-			if e.Gains[b] == 0 {
-				continue
+			// Ten bands: the first a low shelf, the last a high shelf.
+			for b := range p.eq {
+				if e.Gains[b] == 0 {
+					continue
+				}
+				l = p.eq[b].process(l)
+				r = p.eqR[b].process(r)
 			}
-			l = p.eq[b].process(l)
-			r = p.eqR[b].process(r)
-		}
-		if !neutralFilters {
-			l = p.lp.process(p.hp.process(l))
-			r = p.lpR.process(p.hpR.process(r))
-		}
-		if e.Drive > 0 {
-			l = math.Tanh(p.driveShape*l) / p.driveScale * p.driveComp
-			r = math.Tanh(p.driveShape*r) / p.driveScale * p.driveComp
-		}
-		if e.Crush > 0 {
-			l = math.Round(l*p.crushSteps) / p.crushSteps
-			r = math.Round(r*p.crushSteps) / p.crushSteps
-		}
-		if e.Wow > 0 {
-			l, r = p.wowAt2(l, r, e.Wow)
-		}
-		if e.Width != 1 {
-			direct := (1 + e.Width) / 2
-			cross := (1 - e.Width) / 2
-			l, r = l*direct+r*cross, r*direct+l*cross
-		}
-		if e.Punch > 0 {
-			l, r = p.compress(l, r, e.Punch)
-		}
-		if e.Space > 0 {
-			wl, wr := p.rev.process(l, r)
-			l = l*(1-e.Space*0.2) + wl*e.Space*0.75
-			r = r*(1-e.Space*0.2) + wr*e.Space*0.75
-		}
-		if e.Noise > 0 {
-			gain := math.Pow(e.Noise, 1.4) * 0.55
-			nl := p.noiseCrackleL*0.9 + (rand.Float64()*2-1)*0.12
-			p.noiseCrackleL *= 0.88
-			if rand.Float64() < 0.0007 {
-				p.noiseCrackleL = rand.Float64()*2 - 1
+			if !neutralFilters {
+				l = p.lp.process(p.hp.process(l))
+				r = p.lpR.process(p.hpR.process(r))
 			}
-			nr := p.noiseCrackleR*0.9 + (rand.Float64()*2-1)*0.12
-			p.noiseCrackleR *= 0.88
-			if rand.Float64() < 0.0007 {
-				p.noiseCrackleR = rand.Float64()*2 - 1
+			if e.Drive > 0 {
+				l = math.Tanh(p.driveShape*l) / p.driveScale * p.driveComp
+				r = math.Tanh(p.driveShape*r) / p.driveScale * p.driveComp
 			}
-			l += p.noiseL.process(nl) * gain
-			r += p.noiseR.process(nr) * gain
+			if e.Crush > 0 {
+				l = math.Round(l*p.crushSteps) / p.crushSteps
+				r = math.Round(r*p.crushSteps) / p.crushSteps
+			}
+			if e.Wow > 0 {
+				l, r = p.wowAt2(l, r, e.Wow)
+			}
+			if e.Width != 1 {
+				direct := (1 + e.Width) / 2
+				cross := (1 - e.Width) / 2
+				l, r = l*direct+r*cross, r*direct+l*cross
+			}
+			if e.Punch > 0 {
+				l, r = p.compress(l, r, e.Punch)
+			}
+			if e.Space > 0 {
+				wl, wr := p.rev.process(l, r)
+				l = l*(1-e.Space*0.2) + wl*e.Space*0.75
+				r = r*(1-e.Space*0.2) + wr*e.Space*0.75
+			}
+			if e.Noise > 0 {
+				gain := math.Pow(e.Noise, 1.4) * 0.55
+				nl := p.noiseCrackleL*0.9 + (rand.Float64()*2-1)*0.12
+				p.noiseCrackleL *= 0.88
+				if rand.Float64() < 0.0007 {
+					p.noiseCrackleL = rand.Float64()*2 - 1
+				}
+				nr := p.noiseCrackleR*0.9 + (rand.Float64()*2-1)*0.12
+				p.noiseCrackleR *= 0.88
+				if rand.Float64() < 0.0007 {
+					p.noiseCrackleR = rand.Float64()*2 - 1
+				}
+				l += p.noiseL.process(nl) * gain
+				r += p.noiseR.process(nr) * gain
+			}
+		}
+		if mix.Active() {
+			nl, nr := p.record.sample(mix)
+			l += nl
+			r += nr
 		}
 		buf[i], buf[i+1] = float32(l), float32(r)
 	}

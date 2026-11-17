@@ -217,6 +217,13 @@ func (a *app) npCover(c *ui.Context, tr *netease.Track, art *artwork, size float
 		if over {
 			scale *= 1.02
 		}
+		if a.settings.Cover == "vinyl" {
+			angle, arm := a.vinylStep(c, pl.Playing())
+			disc := ui.Box(c).Fill()
+			disc.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
+			disc.Children(func() { a.vinylRecord(c, bitmap(art), angle, arm, a.vinylProgress()) })
+			return
+		}
 		box := ui.Box(c).Fill().Radius(16).Shadow(0, 30, 60, -12, ui.RGBA(0, 0, 0, 0.55))
 		if math.Abs(float64(rx))+math.Abs(float64(ry)) > 0.05 {
 			// In depth only while tilted: flat, it draws as an image does.

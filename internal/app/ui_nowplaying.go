@@ -148,8 +148,15 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 
 		side := float32(math.Min(float64(w)*0.36, 440))
 		// The cover leaves room above it for the tabs, starting as far
-		// under them as the wall's song does.
+		// under them as the wall's song does. A record takes a little more
+		// of the column than a sleeve does.
+		if a.settings.Cover == "vinyl" {
+			side = float32(math.Min(float64(w)*0.42, 500))
+		}
 		coverSize := min(side, h-436)
+		if a.settings.Cover == "vinyl" {
+			coverSize = min(side, h-360)
+		}
 		// The column is as wide as the cover, for the cover, what plays
 		// and the tabs over it to start at one edge, but wide enough for
 		// the controls; a cover shorter than that stays in the middle.
@@ -171,7 +178,7 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 						a.artistLinks(c, tr, white.Alpha(0.6), white, true).FontSize(15).SingleLine()
 					})
 					a.likeButton(c.Key("like"), tr, 22, white.Alpha(0.7))
-					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7), a.lyricsItem).Margin(0, -8, 0, 0)
+					a.songMenu(c.Key("more"), tr, 22, white.Alpha(0.7), a.lyricsItem, a.vinylItem).Margin(0, -8, 0, 0)
 				})
 				a.scrubber(c.Key("np-scrub"), &a.npScrub, white.Alpha(0.18), white.Alpha(0.9), 16, accent.Mix(white, 0.35))
 				// As tall with the quality's badge as without it: the badge goes

@@ -150,6 +150,7 @@ type app struct {
 	backdropCache         backdropCache // the backdrop of Now Playing, as last painted
 	npArt                 *artwork      // the cover whose colors Now Playing shows
 	npCoverState          coverState    // the cover of Now Playing, as it is tilted and flicked
+	vinyl                 vinylState    // the record cover's turn and tonearm
 	wallState             wallState     // the wall of the queue's covers, as it is dragged
 	quiet                 quietState    // the quiet parts of the song playing, for its hot comments
 	sig                   playerSig
@@ -158,6 +159,7 @@ type app struct {
 	settings    settings
 	settingsWin *mygo.Window
 	effectsWin  *mygo.Window
+	vinylWin    *mygo.Window
 	// effectsHPos and effectsLPos are the cutoff sliders' log positions
 	// while the effects window is open.
 	effectsHPos, effectsLPos float64
@@ -257,6 +259,7 @@ func Run() error {
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
 		a.applyEffects()
+		a.applyVinylMix()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:         mygo.App.Name(),
 			Width:         1180,

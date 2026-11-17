@@ -94,7 +94,7 @@ func bandLabel(i int) string {
 // a round knob, as the effects panel shows them.
 func (a *app) effectEqSlider(c *ui.Context, key string, value *float64, pal palette) ui.Element {
 	const knob = float32(12)
-	s := ui.SliderBase(c.Key(key), value, -12, 12).Vertical().Size(24, 200).Step(0.1).FocusRing(false).Label("频段增益")
+	s := ui.SliderBase(c.Key(key), value, -12, 12).Vertical().Size(24, 200).PaddingY(knob / 2).Step(0.1).FocusRing(false).Label("频段增益")
 	s.Draw(func(p *ui.Painter, r ui.Rect) {
 		x := r.X + r.W/2
 		top, foot := r.Y+knob/2, r.Y+r.H-knob/2
@@ -120,14 +120,17 @@ func (a *app) effectEqSlider(c *ui.Context, key string, value *float64, pal pale
 // effectSlider is a slider with a drawn track, its filled part and knob,
 // for the effect chain's controls.
 func (a *app) effectSlider(c *ui.Context, key string, value *float64, lo, hi float64, label string, pal palette) ui.Element {
-	s := ui.SliderBase(c.Key(key), value, lo, hi).Grow(1).Height(28).FocusRing(false).Label(label)
+	const knob = float32(16)
+	s := ui.SliderBase(c.Key(key), value, lo, hi).PaddingX(knob / 2).Grow(1).Height(28).FocusRing(false).Label(label)
 	s.Draw(func(p *ui.Painter, r ui.Rect) {
-		knob := float32(16)
+		pad := knob / 2
+		x0 := r.X + pad
+		w := max(0, r.W-2*pad)
 		y := r.Y + r.H/2
 		v := clamp01(float32((*value - lo) / (hi - lo)))
-		p.Fill(ui.Rect{X: r.X, Y: y - 2, W: r.W, H: 4}, pal.hairline, 2)
-		p.Fill(ui.Rect{X: r.X, Y: y - 2, W: max(knob/2, r.W*v), H: 4}, pal.accent, 2)
-		k := ui.Rect{X: r.X + r.W*v - knob/2, Y: y - knob/2, W: knob, H: knob}
+		p.Fill(ui.Rect{X: x0, Y: y - 2, W: w, H: 4}, pal.hairline, 2)
+		p.Fill(ui.Rect{X: x0, Y: y - 2, W: w * v, H: 4}, pal.accent, 2)
+		k := ui.Rect{X: x0 + w*v - knob/2, Y: y - knob/2, W: knob, H: knob}
 		p.Shadow(k, knob/2, 0, 1, 4, 0, ui.RGBA(0, 0, 0, 0.25))
 		p.Fill(k, pal.text, knob/2)
 	})
