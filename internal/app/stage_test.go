@@ -4,8 +4,43 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"netease-music-mygo/internal/lyrics"
 )
+
+// A space between words takes the room a space takes: text layouts trim
+// it when it ends what they measure, which once crowded English words
+// together on the ring.
+func TestRingKeepsWordSpaces(t *testing.T) {
+	a := newTestApp()
+	a.settings = defaultSettings()
+	a.ring.cache = make(map[string]*ringMetrics)
+	line := lyrics.Line{Text: "questioning to myself", At: 0, End: 3 * time.Second}
+	var m *ringMetrics
+	tt := ui.NewTester(func(c *ui.Context) {
+		if m == nil {
+			m = a.ringMetrics(c, &line, 40, 400)
+		}
+	}, 800, 600)
+	tt.Frame()
+	if m == nil {
+		t.Fatal("no metrics")
+	}
+	space := -1
+	for i, g := range m.glyphs {
+		if g.text == " " {
+			space = i
+			break
+		}
+	}
+	if space < 0 {
+		t.Fatal("no space among the graphemes")
+	}
+	if w := m.width[space]; w < 40*0.3 {
+		t.Errorf("a space takes %v wide, want about a third of the font's size", w)
+	}
+}
 
 // Choosing a style from the stage's menu sets its lyrics in it, and
 // choosing 流光 goes back to the classic.
@@ -125,4 +160,3 @@ func TestTiltSplitsAtPunctuation(t *testing.T) {
 		t.Errorf("split at %d, not after 星，", parts[0].to)
 	}
 }
-

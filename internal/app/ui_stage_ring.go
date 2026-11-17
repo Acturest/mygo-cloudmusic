@@ -477,6 +477,13 @@ func ringMeasure(c *ui.Context, l *lyrics.Line, f, rx float32) *ringMetrics {
 		if off < offsets[k-1] {
 			off = offsets[k-1]
 		}
+		if strings.TrimSpace(glyphs[k-1].text) == "" {
+			// Text layouts trim a space at the end of the prefix they
+			// measure, so a space would take only the tracking and crowd
+			// the words together. Give it the room a space takes; the
+			// prefix it is in, with a letter after it, measures as usual.
+			off = offsets[k-1] + ringFallbackWidth(glyphs[k-1].text, f)
+		}
 		offsets[k] = off
 	}
 	_, height := c.MeasureText(0, ui.Span{Text: "Hg", Size: f, Weight: ringWeight})
