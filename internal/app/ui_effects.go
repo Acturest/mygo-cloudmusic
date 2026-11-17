@@ -120,14 +120,16 @@ func (a *app) effectEqSlider(c *ui.Context, key string, value *float64, pal pale
 // effectSlider is a slider with a drawn track, its filled part and knob,
 // for the effect chain's controls.
 func (a *app) effectSlider(c *ui.Context, key string, value *float64, lo, hi float64, label string, pal palette) ui.Element {
-	s := ui.SliderBase(c.Key(key), value, lo, hi).Grow(1).Height(20).FocusRing(false).Label(label)
+	s := ui.SliderBase(c.Key(key), value, lo, hi).Grow(1).Height(28).FocusRing(false).Label(label)
 	s.Draw(func(p *ui.Painter, r ui.Rect) {
-		knob := float32(6)
+		knob := float32(16)
 		y := r.Y + r.H/2
 		v := clamp01(float32((*value - lo) / (hi - lo)))
-		p.Fill(ui.Rect{X: r.X, Y: y - 1.5, W: r.W, H: 3}, pal.hairline, 1.5)
-		p.Fill(ui.Rect{X: r.X, Y: y - 1.5, W: max(knob, r.W*v), H: 3}, pal.accent, 1.5)
-		p.Fill(ui.Rect{X: r.X + r.W*v - knob/2, Y: y - knob/2, W: knob, H: knob}, pal.text, knob/2)
+		p.Fill(ui.Rect{X: r.X, Y: y - 2, W: r.W, H: 4}, pal.hairline, 2)
+		p.Fill(ui.Rect{X: r.X, Y: y - 2, W: max(knob/2, r.W*v), H: 4}, pal.accent, 2)
+		k := ui.Rect{X: r.X + r.W*v - knob/2, Y: y - knob/2, W: knob, H: knob}
+		p.Shadow(k, knob/2, 0, 1, 4, 0, ui.RGBA(0, 0, 0, 0.25))
+		p.Fill(k, pal.text, knob/2)
 	})
 	return s
 }
