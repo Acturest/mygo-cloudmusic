@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"math/rand/v2"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -68,8 +69,11 @@ type Player struct {
 	feeding  bool // the feed is asked
 	awaiting bool // at the queue's end, for what the feed gives
 
-	track   *netease.Track
-	out     *audio.Player
+	track *netease.Track
+	out   *audio.Player
+	// effects are the chain's settings, read by the goroutine decoding the
+	// song and set from the main thread as the listener changes them.
+	effects atomic.Pointer[Effects]
 	stream  stream
 	info    *netease.Stream // what the current track streams
 	fade    fader
@@ -127,6 +131,12 @@ func New(post func(func())) *Player {
 		p.post(func() {})
 	})
 	return p
+}
+
+// SetEffects gives the sound the effect chain's settings. It runs on the
+// main thread; the decoder picks them up at its next block.
+func (p *Player) SetEffects(e Effects) {
+	p.effects.Store(&e)
 }
 
 // sync shows the system, and Changed, where playback is.
@@ -784,7 +794,10 @@ func (p *Player) loadStream(t netease.Track, gen, at, skipped int, level string,
 			p.err = ""
 			p.stream, p.info = s, info
 			p.gain = normGain(info)
-			p.out = audio.NewPlayer(s)
+			p.out = audio.NewPlayer(&effectDecoder{
+				Decoder: s,
+				proc:    newEffectProcessor(s.SampleRate(), s.Channels(), &p.effects),
+			})
 			// From its middle, as a session picked up again, it fades in.
 			level := 1.0
 			if p.pending > 0 {

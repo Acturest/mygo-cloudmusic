@@ -45,6 +45,10 @@ func (a *app) changed() {
 	if a.notch != nil {
 		a.notch.setEnabled(a.settings.Notch)
 	}
+	a.applyEffects()
+	if a.effectsWin != nil {
+		a.effectsWin.Invalidate()
+	}
 	a.redraw()
 }
 
@@ -263,6 +267,18 @@ func (a *app) settingsView(c *ui.Context) {
 					a.changed()
 				}
 			})
+			row("音频效果器", "十段均衡与效果链：低切高切、驱动、位深破碎、抖动、噪声、立体声宽度、空间与冲击；会多一些 CPU 占用", func() {
+				if ui.Switch(c.Key("effects-enabled"), &s.EffectsEnabled).Label("音频效果器").Changed() {
+					a.changed()
+				}
+			})
+			if s.EffectsEnabled {
+				row("打开音频效果器", "在单独的窗口里调整均衡器和效果链", func() {
+					if ui.Button(c.Key("open-effects"), "打开面板").Clicked() {
+						a.openEffects()
+					}
+				})
+			}
 		})
 
 		group("账号", func() {

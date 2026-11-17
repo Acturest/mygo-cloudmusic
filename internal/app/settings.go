@@ -64,6 +64,13 @@ type settings struct {
 	// experiment the listener turns on. Off, a second launch shows the
 	// window of the first.
 	MultiInstance bool `json:"multiInstance,omitempty"`
+	// EffectsEnabled runs the audio effect chain: an experiment the
+	// listener turns on.
+	EffectsEnabled bool `json:"effectsEnabled,omitempty"`
+	// Effects are the chain's ten bands and the effects after them.
+	Effects effectSettings `json:"effects,omitempty"`
+	// EffectSlots are the two custom curves the effects window keeps.
+	EffectSlots []effectSettings `json:"effectSlots,omitempty"`
 	// AppIcon is where the app's icon shows on macOS (appIcons); elsewhere
 	// it is always in the notification area.
 	AppIcon string `json:"appIcon"`
@@ -94,7 +101,7 @@ const (
 )
 
 func defaultSettings() settings {
-	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048}
+	return settings{NotchActivity: true, Quality: "exhigh", Appearance: "system", Volume: 0.8, Normalize: true, AppIcon: "dock-and-menubar", CacheMB: 2048, Effects: neutralEffectSettings()}
 }
 
 func settingsPath() (string, error) {
@@ -150,6 +157,12 @@ func loadSettings() settings {
 			json.Unmarshal(b, &s)
 		}
 		s.path = path
+	}
+	s.Effects = s.Effects.normalized()
+	for i := range s.EffectSlots {
+		if s.EffectSlots[i] != (effectSettings{}) {
+			s.EffectSlots[i] = s.EffectSlots[i].normalized()
+		}
 	}
 	return s
 }

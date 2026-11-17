@@ -157,7 +157,11 @@ type app struct {
 
 	settings    settings
 	settingsWin *mygo.Window
-	cacheUsed   int64 // the bytes the song cache takes, -1 until measured
+	effectsWin  *mygo.Window
+	// effectsHPos and effectsLPos are the cutoff sliders' log positions
+	// while the effects window is open.
+	effectsHPos, effectsLPos float64
+	cacheUsed                int64 // the bytes the song cache takes, -1 until measured
 
 	restored     bool      // playback picked up where it was left
 	savedSession string    // the session as last kept
@@ -252,6 +256,7 @@ func Run() error {
 		a.pl.Started = a.reportStart
 		a.volume = a.settings.Volume
 		a.pl.SetVolume(a.volume)
+		a.applyEffects()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:         mygo.App.Name(),
 			Width:         1180,
