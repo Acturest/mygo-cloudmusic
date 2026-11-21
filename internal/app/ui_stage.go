@@ -174,7 +174,7 @@ func (a *app) stage(c *ui.Context, tr *netease.Track, accent ui.Color) {
 // stageFoot shows the translation of the line being sung, and the one
 // coming next, along the foot.
 func (a *app) stageFoot(c *ui.Context, lines []lyrics.Line, cur int) {
-	ui.Column(c).Absolute().Left(0).Right(0).Bottom(stageBarHeight+24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
+	ui.Column(c).Absolute().Left(0).Right(0).Bottom(stageBarHeight + 24).AlignItems(ui.Center).Gap(8).PassThrough().Children(func() {
 		if cur >= 0 && lines[cur].Translation != "" {
 			ui.Text(c.Key("translation"), lines[cur].Translation).FontSize(18).FontWeight(600).TextColor(white.Alpha(0.72)).TextAlign(ui.Center)
 		}

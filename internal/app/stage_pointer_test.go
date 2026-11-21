@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"netease-music-mygo/internal/netease"
 	"github.com/egoist/mygo/ui"
+	"netease-music-mygo/internal/netease"
 )
 
 // An instrumental has no lyrics, so the stage shows its own message in a box

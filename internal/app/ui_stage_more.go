@@ -59,4 +59,3 @@ func (a *app) cadenzaLine(c *ui.Context, l *lyrics.Line, pos time.Duration, f, w
 		}
 	})
 }
-
