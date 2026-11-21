@@ -8,8 +8,8 @@ import (
 	"strconv"
 )
 
-// Editing the listener's own playlists, through the eapi, which carries
-// the session.
+// Editing the listener's own playlists: the songs through the web player's
+// API, which is what makes the change stick, and the rest through the eapi.
 
 // ErrInPlaylist is what adding a song a playlist has already gives.
 var ErrInPlaylist = errors.New("the song is in the playlist already")
@@ -63,22 +63,22 @@ func AddToPlaylist(pid int64, songs ...int64) error { return manipulate("add", p
 func RemoveFromPlaylist(pid int64, songs ...int64) error { return manipulate("del", pid, songs) }
 
 func manipulate(op string, pid int64, songs []int64) error {
-	var res struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	}
-	send := func(ids []int64) error {
+	// The web player's call: the eapi answered 200 for an addition that a
+	// later refresh dropped from the playlist.
+	send := func(ids []int64) (*apiError, error) {
 		b, _ := json.Marshal(ids)
-		data := map[string]any{"op": op, "pid": strconv.FormatInt(pid, 10), "trackIds": string(b), "imme": "true"}
-		return eapiPost("/api/playlist/manipulate/tracks", data, &res)
+		return weapiPost("/api/playlist/manipulate/tracks", map[string]any{
+			"op": op, "pid": strconv.FormatInt(pid, 10), "trackIds": string(b), "imme": "true",
+		})
 	}
-	if err := send(songs); err != nil {
+	res, err := send(songs)
+	if err != nil {
 		return err
 	}
 	// Some playlists refuse a list of songs once, as the NeteaseCloudMusicApi
 	// project found, and take it twice over.
 	if res.Code == 512 {
-		if err := send(slices.Concat(songs, songs)); err != nil {
+		if res, err = send(slices.Concat(songs, songs)); err != nil {
 			return err
 		}
 	}

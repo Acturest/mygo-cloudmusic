@@ -411,7 +411,66 @@ func Lossless(level string) bool { return level == "lossless" || level == "hires
 // SongURL returns where to stream a track, MP3 or FLAC, at level (one of
 // Levels) or the best below it the listener may play. It goes through
 // the eapi, which carries the session, so VIP songs play for subscribers.
+// NetEase's risk check refuses the v1 endpoint with -460 now and then, for
+// that request only: the same song answers on the next one, and the older
+// endpoint, which takes a bitrate instead of a level, is the last resort.
 func SongURL(id int64, level string) (*Stream, error) {
+	encode := "mp3"
+	if Lossless(level) {
+		encode = "flac"
+	}
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		var st *Stream
+		st, err = songURLv1(id, level, encode)
+		if err == nil {
+			return st, nil
+		}
+		var refused *apiCodeError
+		if !errors.As(err, &refused) || refused.code != -460 {
+			return nil, err
+		}
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * 300 * time.Millisecond)
+		}
+	}
+	return songURLbr(id, level)
+}
+
+// apiCodeError is NetEase's answer to a request it would not serve, with
+// the code it gave: -460 says the request looked risky, not the song.
+type apiCodeError struct{ code int }
+
+func (e *apiCodeError) Error() string {
+	return fmt.Sprintf("netease: song url: code %d", e.code)
+}
+
+func songURLv1(id int64, level, encode string) (*Stream, error) {
+	return songURL("/api/song/enhance/player/url/v1", map[string]any{
+		"ids": fmt.Sprintf("[%d]", id), "level": level, "encodeType": encode,
+	}, level)
+}
+
+func songURLbr(id int64, level string) (*Stream, error) {
+	return songURL("/api/song/enhance/player/url", map[string]any{
+		"ids": fmt.Sprintf("[%d]", id), "br": bitrate(level),
+	}, level)
+}
+
+// bitrate is the rate the older endpoint takes for level.
+func bitrate(level string) int {
+	switch level {
+	case "standard":
+		return 128000
+	case "higher":
+		return 192000
+	case "lossless", "hires":
+		return 999000
+	}
+	return 320000
+}
+
+func songURL(path string, data map[string]any, level string) (*Stream, error) {
 	var res struct {
 		Code int `json:"code"`
 		Data []struct {
@@ -421,17 +480,11 @@ func SongURL(id int64, level string) (*Stream, error) {
 			FreeTrialInfo json.RawMessage `json:"freeTrialInfo"`
 		} `json:"data"`
 	}
-	encode := "mp3"
-	if Lossless(level) {
-		encode = "flac"
-	}
-	data := map[string]any{"ids": fmt.Sprintf("[%d]", id), "level": level, "encodeType": encode}
-	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
+	if err := eapiPost(path, data, &res); err != nil {
 		return nil, err
 	}
 	if res.Code != 200 {
-		// Not the same as a song that won't stream: asked again, it may.
-		return nil, fmt.Errorf("netease: song url: code %d", res.Code)
+		return nil, &apiCodeError{code: res.Code}
 	}
 	if len(res.Data) == 0 || res.Data[0].URL == "" {
 		return nil, ErrUnavailable

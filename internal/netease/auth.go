@@ -273,13 +273,13 @@ func RecentPlays(limit int) ([]Play, error) {
 }
 
 // Like likes a song, adding it to the listener's liked songs, or unlikes it.
+// It goes through the web player's API, whose call the service credits, and
+// whose parameters are the JSON types it expects.
 func Like(id int64, like bool) error {
-	var res struct {
-		Code int    `json:"code"`
-		Msg  string `json:"msg"`
-	}
-	data := map[string]any{"alg": "itembased", "trackId": strconv.FormatInt(id, 10), "like": strconv.FormatBool(like), "time": "3"}
-	if err := eapiPost("/api/radio/like", data, &res); err != nil {
+	res, err := weapiPost("/api/radio/like", map[string]any{
+		"alg": "itembased", "trackId": id, "like": like, "time": 3,
+	})
+	if err != nil {
 		return err
 	}
 	if res.Code != 200 {
