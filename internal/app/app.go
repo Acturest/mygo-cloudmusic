@@ -77,6 +77,7 @@ type app struct {
 	toast        string         // a message to show once
 	picked       pickedUp       // the song a login picked up, waiting to play
 	scrobbles    *scrobbleLog   // the play logs queued or on their way
+	scrobbleSkip int64          // the track whose whole play is left unreported
 
 	// The episodes the listener likes, and doesn't, as far as NetEase has
 	// answered, and those asked about: see ui_like.go.

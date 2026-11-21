@@ -21,7 +21,7 @@ var (
 var (
 	// scrobbleSkip is the share of listens left unreported: a listener does
 	// not report every song they hear.
-	scrobbleSkip = 0.15
+	scrobbleSkip = 0.35
 	// scrobbleGap is the least time between two logs: the client logs as it
 	// plays, never in a burst.
 	scrobbleGap = 3 * time.Second
@@ -59,10 +59,17 @@ func (a *app) routeSource() (string, int64) {
 
 // reportStart tells NetEase that a track started playing, so that the play
 // log comes as the client's does: what started, then later how it ended.
+// The skip covers the whole play: a listen left out of the record sends
+// neither its start nor its end, so the two never come apart.
 func (a *app) reportStart(t netease.Track) {
 	if !a.scrobbleable(t) {
 		return
 	}
+	if rand.Float64() < scrobbleSkip {
+		a.scrobbleSkip = t.ID
+		return
+	}
+	a.scrobbleSkip = 0
 	source, id := a.pl.Origin()
 	a.logScrobble(scrobbleJob{start: true, track: t, source: source, id: id})
 }
@@ -76,10 +83,14 @@ func (a *app) reportPlay(t netease.Track, played time.Duration) {
 	if !a.scrobbleable(t) {
 		return
 	}
-	// Some listens go unreported: a report of every song heard is not what
-	// a listener's log looks like.
-	if rand.Float64() < scrobbleSkip {
-		return
+	// Follow the start's decision: a play left out there is left out here
+	// too, so no log is left with only its beginning.
+	if a.scrobbleSkip != 0 {
+		skipped := a.scrobbleSkip == t.ID
+		a.scrobbleSkip = 0
+		if skipped {
+			return
+		}
 	}
 	// Never longer than the song: a report of a song longer than it played
 	// reads as one nobody made.
@@ -115,8 +126,8 @@ type scrobbleLog struct {
 	mu      sync.Mutex
 	jobs    []scrobbleJob
 	sending bool
-	last    time.Time // when the last log went
-	pause   time.Time // when sending may go on after a failure
+	last    time.Time     // when the last log went
+	pause   time.Time     // when sending may go on after a failure
 	done    chan struct{} // closed once the worker emptied the queue
 }
 

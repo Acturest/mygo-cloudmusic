@@ -126,17 +126,28 @@ func TestReportPlayCapsTheLength(t *testing.T) {
 	}
 }
 
-// Some listens go unreported, as a listener's do.
+// Some listens go unreported, as a listener's do: the whole play, so a
+// listen that is left out sends neither its start nor its end.
 func TestReportPlayLeavesSomeListensOut(t *testing.T) {
 	a := newTestApp()
 	a.profile = &netease.Profile{UserID: 9}
 	a.settings.Scrobble = true
 	sent, _ := stubPlayLog(t)
 	scrobbleSkip = 1
+	tr := netease.Track{ID: 7, Duration: 200000}
 
-	a.reportPlay(netease.Track{ID: 7, Duration: 200000}, 150*time.Second)
+	a.reportStart(tr)
+	a.reportPlay(tr, 150*time.Second)
 	waitLogs(t, a)
 	expectNoLog(t, sent)
+
+	// The next play is decided on its own.
+	scrobbleSkip = 0
+	a.reportStart(tr)
+	a.reportPlay(tr, 150*time.Second)
+	waitLogs(t, a)
+	expectLog(t, sent)
+	expectLog(t, sent)
 }
 
 // reportStart logs that a song started, then reportPlay what it played:
